@@ -1,4 +1,8 @@
-﻿namespace Ofella.Utilities.Memory.Defragmentation;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+namespace Ofella.Utilities.Memory.Defragmentation;
 
 public static class FragmentedMemory
 {
@@ -6,14 +10,33 @@ public static class FragmentedMemory
 
     #region Defragmentation of Memory<T>[]
 
+    public static void Copy<T>(Memory<T>[] source, T[] target)
+    {
+        ref var sourcePtr = ref MemoryMarshal.GetArrayDataReference(source);
+        ref var sourceEnd = ref Unsafe.Add(ref sourcePtr, source.Length);
+        ref var targetPtr = ref MemoryMarshal.GetArrayDataReference(target);
+
+        for (;
+            Unsafe.IsAddressLessThan(ref sourcePtr, ref sourceEnd);
+            sourcePtr = ref Unsafe.Add(ref sourcePtr, 1))
+        {
+            sourcePtr.Span.CopyTo(MemoryMarshal.CreateSpan(ref targetPtr, sourcePtr.Length));
+            targetPtr = ref Unsafe.Add(ref targetPtr, sourcePtr.Length);
+        }
+    }
+
     public static void Copy<T>(Memory<T>[] source, Memory<T> target)
     {
         int offset = 0;
+        ref var current = ref MemoryMarshal.GetArrayDataReference(source);
+        ref var lastItem = ref Unsafe.Add(ref current, source.Length);
 
-        for (var i = 0; i < source.Length; ++i)
+        for (;
+            Unsafe.IsAddressLessThan(ref current, ref lastItem);
+            current = ref Unsafe.Add(ref current, 1))
         {
-            source[i].CopyTo(target[offset..]);
-            offset += source[i].Length;
+            current.CopyTo(target[offset..]);
+            offset += current.Length;
         }
     }
 
@@ -36,6 +59,39 @@ public static class FragmentedMemory
     #endregion
 
     #region Defragmentation of object[] where object is T[]
+
+    public static void Copy(byte[][] source, byte[] target)
+    {
+        ref byte[] pSources = ref MemoryMarshal.GetArrayDataReference(source);
+        ref byte[] pSourcesEnd = ref Unsafe.Add(ref pSources, source.Length);
+        ref byte pTarget = ref MemoryMarshal.GetArrayDataReference(target);
+
+        for (;
+            Unsafe.IsAddressLessThan(ref pSources, ref pSourcesEnd);
+            pSources = ref Unsafe.Add(ref pSources, 1))
+        {
+            ref var pSource = ref MemoryMarshal.GetArrayDataReference(pSources);
+            Unsafe.CopyBlock(ref pTarget, ref pSource, (uint)pSources.Length);
+            pTarget = Unsafe.Add(ref pTarget, pSources.Length);
+        }
+    }
+
+    public static void Copy<T>(T[][] source, T[] target)
+    {
+        ref T[] pSources = ref MemoryMarshal.GetArrayDataReference(source);
+        ref T[] pSourcesEnd = ref Unsafe.Add(ref pSources, source.Length);
+        ref T pTarget = ref MemoryMarshal.GetArrayDataReference(target);
+
+        for (;
+            Unsafe.IsAddressLessThan(ref pSources, ref pSourcesEnd);
+            pSources = ref Unsafe.Add(ref pSources, 1))
+        {
+            ref var pSource = ref MemoryMarshal.GetArrayDataReference(pSources);
+            //Unsafe.CopyBlock(ref pTarget, ref pSource, (uint)pSources.Length);
+            //todo: memorymarshal can convert array to byte somehow, but only structs
+            pTarget = Unsafe.Add(ref pTarget, pSources.Length);
+        }
+    }
 
     public static void Copy<T>(object[] source, Memory<T> target)
     {
