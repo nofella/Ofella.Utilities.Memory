@@ -1,5 +1,8 @@
 ﻿using BenchmarkDotNet.Attributes;
 using Ofella.Utilities.Memory.Comparing;
+using Ofella.Utilities.Memory.ManagedPointers;
+using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace Ofella.Utilities.Memory.Benchmarks.ReadOnlySpanOfChar;
 
@@ -74,27 +77,39 @@ public class EqualsOrdinal
     }
     public IEnumerable<object[]> GetParams()
     {
-        //yield return new object[] { _str1, _str1_1 };
+        yield return new object[] { _str1, _str1_1 };
         yield return new object[] { _str2, _str2_1 };
-        //yield return new object[] { _str3, _str3_1 };
-        //yield return new object[] { _str4, _str4_1 };
-        //yield return new object[] { _str5, _str5_1 };
-        //yield return new object[] { _str6, _str6_1 };
-        //yield return new object[] { _str7, _str7_1 };
-        //yield return new object[] { _str8, _str8_1 };
-        //yield return new object[] { _str16, _str16_1 };
-        //yield return new object[] { _str32, _str32_1 };
-        //yield return new object[] { _str64, _str64_1 };
-        //yield return new object[] { _str128, _str128_1 };
+        yield return new object[] { _str3, _str3_1 };
+        yield return new object[] { _str4, _str4_1 };
+        yield return new object[] { _str5, _str5_1 };
+        yield return new object[] { _str6, _str6_1 };
+        yield return new object[] { _str7, _str7_1 };
+        yield return new object[] { _str8, _str8_1 };
+        yield return new object[] { _str16, _str16_1 };
+        yield return new object[] { _str32, _str32_1 };
+        yield return new object[] { _str64, _str64_1 };
+        yield return new object[] { _str128, _str128_1 };
     }
 
     #endregion
 
     [Benchmark]
     [ArgumentsSource(nameof(GetParams))]
-    public bool EqualsOrdinal_NonConstant(ReadOnlySpan<char> s1, ReadOnlySpan<char> s2)
+    public bool EqualsOrdinal_NonConstant(ReadOnlySpan<char> str1, ReadOnlySpan<char> str2)
     {
-        return s1.EqualsOrdinal(s2);
+        if (str1.Length != str2.Length) return false;
+
+        return EqualityComparer.Equals(
+            ref MemoryMarshal.GetReference(str1).AsBytePtr(),
+            ref MemoryMarshal.GetReference(str2).AsBytePtr(),
+            (nuint)str1.Length);
+    }
+
+    //[Benchmark]
+    [ArgumentsSource(nameof(GetParams))]
+    public bool EqualsOrdinal_NonConstant2(ReadOnlySpan<char> str1, ReadOnlySpan<char> str2)
+    {
+        return str1.EqualsOrdinal(str2);
     }
 
     [Benchmark]
