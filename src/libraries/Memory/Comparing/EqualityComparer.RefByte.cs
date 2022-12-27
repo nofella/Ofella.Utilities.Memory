@@ -11,7 +11,7 @@ public static partial class EqualityComparer
     public static bool Equals(this ref byte left, ref byte right, nuint length)
     {
         // Cannot be vectorized due to small length, or lack of hw support for vectors
-        if (!Vector128.IsHardwareAccelerated || length < (nuint)Vector128<ushort>.Count)
+        if (!Vector128.IsHardwareAccelerated || length < (nuint)Vector128<byte>.Count)
         {
             switch (length)
             {
@@ -46,7 +46,7 @@ public static partial class EqualityComparer
                 case 15:
                     return left.AsQwordPtr() == right.AsQwordPtr() && left.AsQwordPtr(7) == right.AsQwordPtr(7);
 
-                // no hw support: "fake" vectorizing using ulong
+                // No hw support: "fake" vectorizing using ulong
                 default:
                     // Taking advantage of string interning
                     if (Unsafe.AreSame(ref left, ref right)) return true;
@@ -69,40 +69,48 @@ public static partial class EqualityComparer
         if (Unsafe.AreSame(ref left, ref right)) return true;
 
         // Can be vectorized using Vector128
-        if (!Vector256.IsHardwareAccelerated || length < (nuint)Vector256<ushort>.Count)
+        if (!Vector256.IsHardwareAccelerated || length < (nuint)Vector256<byte>.Count)
         {
             nuint offset = 0;
-            nuint lastVectorStart = length - (nuint)Vector128<ushort>.Count;
+            nuint lastVectorStart = length - (nuint)Vector128<byte>.Count;
 
-            while (offset < lastVectorStart)
+            if (lastVectorStart != 0)
             {
-                if (Vector128.Xor(Vector128.LoadUnsafe(ref left, offset), Vector128.LoadUnsafe(ref right, offset)) != Vector128<byte>.Zero)
+                do
                 {
-                    return false;
-                }
+                    if (Vector128.Xor(Vector128.LoadUnsafe(ref left, offset), Vector128.LoadUnsafe(ref right, offset)) != Vector128<byte>.Zero)
+                    {
+                        return false;
+                    }
 
-                offset += (nuint)Vector128<ushort>.Count;
+                    offset += (nuint)Vector128<byte>.Count;
+                }
+                while (offset < lastVectorStart);
             }
 
-            return Vector128.Xor(Vector128.LoadUnsafe(ref left, offset), Vector128.LoadUnsafe(ref right, offset)) == Vector128<byte>.Zero;
+            return Vector128.Xor(Vector128.LoadUnsafe(ref left, lastVectorStart), Vector128.LoadUnsafe(ref right, lastVectorStart)) == Vector128<byte>.Zero;
         }
 
         // Can be vectorized using Vector256
         {
             nuint offset = 0;
-            nuint lastVectorStart = length - (nuint)Vector256<ushort>.Count;
+            nuint lastVectorStart = length - (nuint)Vector256<byte>.Count;
 
-            while (offset < lastVectorStart)
+            if (lastVectorStart != 0)
             {
-                if (Vector256.Xor(Vector256.LoadUnsafe(ref left, offset), Vector256.LoadUnsafe(ref right, offset)) != Vector256<byte>.Zero)
+                do
                 {
-                    return false;
-                }
+                    if (Vector256.Xor(Vector256.LoadUnsafe(ref left, offset), Vector256.LoadUnsafe(ref right, offset)) != Vector256<byte>.Zero)
+                    {
+                        return false;
+                    }
 
-                offset += (nuint)Vector256<ushort>.Count;
+                    offset += (nuint)Vector256<byte>.Count;
+                }
+                while (offset < lastVectorStart);
             }
 
-            return Vector256.Xor(Vector256.LoadUnsafe(ref left, offset), Vector256.LoadUnsafe(ref right, offset)) == Vector256<byte>.Zero;
+            return Vector256.Xor(Vector256.LoadUnsafe(ref left, lastVectorStart), Vector256.LoadUnsafe(ref right, lastVectorStart)) == Vector256<byte>.Zero;
         }
     }
 }

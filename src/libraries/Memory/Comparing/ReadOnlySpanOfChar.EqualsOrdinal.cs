@@ -10,7 +10,7 @@ public static partial class ReadOnlySpanOfCharExtensions
         return EqualsOrdinal(s1.AsSpan(), s2.AsSpan());
     }
 
-    //[MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static bool EqualsOrdinal(this ReadOnlySpan<char> left, ReadOnlySpan<char> right)
     {
         // Pointless to check equality if lengths are not matched
@@ -19,10 +19,9 @@ public static partial class ReadOnlySpanOfCharExtensions
         ref var pLeft = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(left));
         ref var pRight = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(right));
 
-
         return EqualityComparer.Equals(
             ref pLeft,
             ref pRight,
-            (nuint)left.Length);
+            (nuint)left.Length * 2);
     }
 }
