@@ -158,7 +158,7 @@ public class OptimizedSequenceEqualForDifferentLengths
     }
 
     [Benchmark]
-    [ArgumentsSource(nameof(ParamsForShort))]
+    [ArgumentsSource(nameof(ParamsForFw))]
     public bool Framework(ReadOnlySpan<char> left1, ReadOnlySpan<char> right1, ReadOnlySpan<char> left2, ReadOnlySpan<char> right2, ReadOnlySpan<char> left3, ReadOnlySpan<char> right3)
     {
         _dummy1 = left1.SequenceEqual(right1);
