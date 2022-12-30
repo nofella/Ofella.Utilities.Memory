@@ -75,6 +75,11 @@ public class OptimizedSequenceEqualForDifferentLengths
         yield return new object[] { _strLeft1[12], _strRight1[12], _strLeft2[12], _strRight2[12], _strLeft3[12], _strRight3[12] };
         yield return new object[] { _strLeft1[13], _strRight1[13], _strLeft2[13], _strRight2[13], _strLeft3[13], _strRight3[13] };
         yield return new object[] { _strLeft1[14], _strRight1[14], _strLeft2[14], _strRight2[14], _strLeft3[14], _strRight3[14] };
+        yield return new object[] { _strLeft1[15], _strRight1[15], _strLeft2[15], _strRight2[15], _strLeft3[15], _strRight3[15] };
+        yield return new object[] { _strLeft1[16], _strRight1[16], _strLeft2[16], _strRight2[16], _strLeft3[16], _strRight3[16] };
+        yield return new object[] { _strLeft1[17], _strRight1[17], _strLeft2[17], _strRight2[17], _strLeft3[17], _strRight3[17] };
+        yield return new object[] { _strLeft1[18], _strRight1[18], _strLeft2[18], _strRight2[18], _strLeft3[18], _strRight3[18] };
+        yield return new object[] { _strLeft1[19], _strRight1[19], _strLeft2[19], _strRight2[19], _strLeft3[19], _strRight3[19] };
     }
 
     public IEnumerable<object[]> ParamsForFw()
@@ -93,6 +98,11 @@ public class OptimizedSequenceEqualForDifferentLengths
         yield return new object[] { _strLeft1[12], _strRight1[12], _strLeft2[12], _strRight2[12], _strLeft3[12], _strRight3[12] };
         yield return new object[] { _strLeft1[13], _strRight1[13], _strLeft2[13], _strRight2[13], _strLeft3[13], _strRight3[13] };
         yield return new object[] { _strLeft1[14], _strRight1[14], _strLeft2[14], _strRight2[14], _strLeft3[14], _strRight3[14] };
+        yield return new object[] { _strLeft1[15], _strRight1[15], _strLeft2[15], _strRight2[15], _strLeft3[15], _strRight3[15] };
+        yield return new object[] { _strLeft1[16], _strRight1[16], _strLeft2[16], _strRight2[16], _strLeft3[16], _strRight3[16] };
+        yield return new object[] { _strLeft1[17], _strRight1[17], _strLeft2[17], _strRight2[17], _strLeft3[17], _strRight3[17] };
+        yield return new object[] { _strLeft1[18], _strRight1[18], _strLeft2[18], _strRight2[18], _strLeft3[18], _strRight3[18] };
+        yield return new object[] { _strLeft1[19], _strRight1[19], _strLeft2[19], _strRight2[19], _strLeft3[19], _strRight3[19] };
     }
 
     #endregion
