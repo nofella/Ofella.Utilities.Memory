@@ -2,12 +2,12 @@
 using Ofella.Utilities.Memory.Defragmentation;
 using System.Text;
 
-namespace Ofella.Utilities.Memory.Benchmark.Scenarios;
+namespace Ofella.Utilities.Memory.Benchmark.Defragmentation;
 
 [MemoryDiagnoser]
 public class Streaming
 {
-    private static Memory<byte>[] memories = new[]
+    private static readonly Memory<byte>[] memories = new[]
     {
         Encoding.UTF8.GetBytes(new string('X', 1000)).AsMemory(),
         Encoding.UTF8.GetBytes(new string('X', 1000)).AsMemory(),
@@ -34,7 +34,7 @@ public class Streaming
 
     private static byte[] buffer = new byte[21000];
 
-    [Benchmark]
+    //[Benchmark]
     public void UsingMemoryStream()
     {
         using var stream = new MemoryStream(21000);
@@ -53,7 +53,7 @@ public class Streaming
         stream.Read(buffer, 18000, 3000);
     }
 
-    [Benchmark]
+    //[Benchmark]
     public async ValueTask UsingAsyncMemoryStream()
     {
         using var stream = new MemoryStream(21000);

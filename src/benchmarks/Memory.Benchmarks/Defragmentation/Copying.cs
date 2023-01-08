@@ -2,7 +2,7 @@
 using Ofella.Utilities.Memory.Defragmentation;
 using System.Runtime.CompilerServices;
 
-namespace Ofella.Utilities.Memory.Benchmark.Scenarios;
+namespace Ofella.Utilities.Memory.Benchmark.Defragmentation;
 
 [MemoryDiagnoser]
 public class Copying

@@ -13,7 +13,7 @@ public class FragmentedMemoryReaderStream : Stream
 
     public override bool CanSeek => true;
 
-    public override bool CanWrite => true;
+    public override bool CanWrite => false;
 
     public override long Length => _fragmentedMemory.Length;
 
@@ -36,11 +36,13 @@ public class FragmentedMemoryReaderStream : Stream
 
     public override int Read(byte[] buffer, int offset, int count)
     {
-        var originalPosition = Position;
+        var fragmentedMemorySlice = _fragmentedMemory[(int)Position..(int)(Position + count)];
 
-        _fragmentedMemory[(int)Position..(int)(Position + count)].CopyTo(buffer.AsMemory()[offset..]);
+        fragmentedMemorySlice.CopyTo(buffer.AsMemory()[offset..]);
 
-        return (int)Position - (int)originalPosition;
+        Position += fragmentedMemorySlice.Length;
+
+        return fragmentedMemorySlice.Length;
     }
 
     public override long Seek(long offset, SeekOrigin origin)
