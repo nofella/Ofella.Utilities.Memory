@@ -36,13 +36,30 @@ public class FragmentedMemoryReaderStream : Stream
 
     public override int Read(byte[] buffer, int offset, int count)
     {
-        var fragmentedMemorySlice = _fragmentedMemory[(int)Position..(int)(Position + count)];
+        if (Position >= Length)
+        {
+            goto EndOfStream; // Unfavor this branch when BPU has not enough information.
+        }
+
+        FragmentedMemory<byte> fragmentedMemorySlice;
+
+        if (Position + count <= Length) // Favor this branch when BPU has not enough information.
+        {
+            fragmentedMemorySlice = _fragmentedMemory.Slice((int)Position, count);
+        }
+        else
+        {
+            fragmentedMemorySlice = _fragmentedMemory.Slice((int)Position, (int)(Length - Position));
+        }
 
         fragmentedMemorySlice.CopyTo(buffer.AsMemory()[offset..]);
 
         Position += fragmentedMemorySlice.Length;
 
         return fragmentedMemorySlice.Length;
+
+    EndOfStream:
+        return 0;
     }
 
     public override long Seek(long offset, SeekOrigin origin)

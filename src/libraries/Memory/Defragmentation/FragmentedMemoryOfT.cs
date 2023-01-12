@@ -51,9 +51,10 @@ public readonly struct FragmentedMemory<T>
     }
 
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public FragmentedMemory<T> Slice(int offset, int length) => new(in this, _offset + offset, length);
 
-    public FragmentedMemory<T> this[Range range] => new(in this, _offset + range.Start.Value, range.End.Value - range.Start.Value);
+    public FragmentedMemory<T> this[Range range] => Slice(_offset + range.Start.Value, range.End.Value - range.Start.Value);
 
 
     public void CopyTo(Memory<T> destination)
@@ -77,21 +78,21 @@ public readonly struct FragmentedMemory<T>
         // Optimized for sequential copy from start: avoid the binary search if the _offset is 0.
         var firstFragment = _offset == 0 ? (fragmentNo: 0, offset: 0) : GetFragmentAt(_offset);
 
-        // For cleaner code: separated copy logic for cases when the total length to be copied is smaller than the first segment 
-        if (Length < _fragments[0].Memory.Length)
+        if (firstFragment.fragmentNo == -1)
         {
-            copyAction(_fragments[0].Memory[firstFragment.offset..Length], 0);
-            return;
+            goto EndOfStream;
         }
 
-        int destinationOffset = 0;
-
-        for (int i = firstFragment.fragmentNo; destinationOffset < Length; ++i)
+        for (int i = firstFragment.fragmentNo, destinationOffset = 0;
+            destinationOffset < Length; ++i)
         {
             int bytesToCopy = Math.Min(_fragments[i].Memory.Length, Length - destinationOffset);
             copyAction(_fragments[i].Memory[..bytesToCopy], destinationOffset);
             destinationOffset += bytesToCopy;
         }
+
+    EndOfStream:
+        return;
     }
 
     internal async ValueTask CopyToAsync(Func<Memory<T>, long, CancellationToken, ValueTask> copyAction, CancellationToken cancellationToken = default)
@@ -126,27 +127,27 @@ public readonly struct FragmentedMemory<T>
 
         int lowerBoundary = 0;
         int upperBoundary = _fragments.Length - 1;
-        int fragmentToCheck = 0;
+        int fragmentNoToCheck;
 
         while (lowerBoundary <= upperBoundary)
         {
-            fragmentToCheck = (lowerBoundary + upperBoundary) >> 1;
+            fragmentNoToCheck = (lowerBoundary + upperBoundary) >> 1;
+            var fragmentToCheck = Unsafe.Add(ref fragmentsPtr, fragmentNoToCheck);
 
-            if (offset < Unsafe.Add(ref fragmentsPtr, fragmentToCheck).Offset)
+            if (offset < fragmentToCheck.Offset)
             {
-                upperBoundary = fragmentToCheck - 1;
+                upperBoundary = fragmentNoToCheck - 1;
             }
-            else if (offset >= Unsafe.Add(ref fragmentsPtr, fragmentToCheck + 1).Offset)
+            else if (offset > fragmentToCheck.Offset + fragmentToCheck.Memory.Length - 1)
             {
-                lowerBoundary = fragmentToCheck + 1;
+                lowerBoundary = fragmentNoToCheck + 1;
             }
             else
             {
-                goto FragmentFound;
+                return (fragmentNoToCheck, offset - _fragments[fragmentNoToCheck].Offset);
             }
         }
 
-    FragmentFound:
-        return (fragmentToCheck, offset - _fragments[fragmentToCheck].Offset);
+        return (-1, -1); // Not found.
     }
 }

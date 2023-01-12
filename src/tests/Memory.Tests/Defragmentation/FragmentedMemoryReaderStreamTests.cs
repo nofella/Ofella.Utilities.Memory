@@ -1,4 +1,4 @@
-﻿using System.Text;
+﻿using System.IO;
 using System;
 using Xunit;
 using Ofella.Utilities.Memory.Defragmentation;
@@ -7,46 +7,52 @@ namespace Ofella.Utilities.Memory.Tests.Defragmentation;
 
 public class FragmentedMemoryReaderStreamTests
 {
-    private const string Source = "";
+    private readonly Memory<byte> _input100k;
 
-    private readonly Memory<byte>[] _memories1000 = new[]
+    public FragmentedMemoryReaderStreamTests()
     {
-        Encoding.UTF8.GetBytes(Source.Substring(0, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(1000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(2000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(3000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(4000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(5000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(6000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(7000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(8000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(9000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(10_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(11_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(12_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(13_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(14_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(15_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(16_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(17_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(18_000, 1000)).AsMemory(),
-        Encoding.UTF8.GetBytes(Source.Substring(19_000, 1000)).AsMemory()
-    };
+        _input100k = File.ReadAllBytes("Defragmentation\\Inputs\\input-100k.txt");
+    }
 
-    [Fact]
-    public void ReadByFragmentSize()
+    [Theory]
+    // fragmentSize = readSize
+    [InlineData(10, 10)]
+    [InlineData(100, 100)]
+    [InlineData(1_000, 1_000)]
+    [InlineData(10_000, 10_000)]
+
+    // fragmentSize > readSize
+    [InlineData(1_000, 512)]
+    [InlineData(10_000, 1_000)]
+    [InlineData(10_000, 100)]
+    public void ReadByFragmentSize(int fragmentSize, int readSize)
     {
-        var buffer = new byte[20_000];
-        var fragmentedMemory = new FragmentedMemory<byte>(_memories1000);
+        var fragments = CreateFixLengthFragments(_input100k, fragmentSize);
+        var fragmentedMemory = new FragmentedMemory<byte>(fragments);
         var stream = new FragmentedMemoryReaderStream(fragmentedMemory);
 
-        for(int i = 0; i < buffer.Length / 1_000; ++i)
+        var buffer = new byte[100_000];
+        int offset = 0;
+        int bytesRead;
+
+        while ((bytesRead = stream.Read(buffer, offset, readSize)) > 0) offset += bytesRead;
+
+        Assert.True(_input100k.Span.SequenceEqual(buffer));
+    }
+
+    private static Memory<byte>[] CreateFixLengthFragments(Memory<byte> input, int fragmentSize)
+    {
+        var result = new Memory<byte>[(int)Math.Ceiling(input.Length / (double)fragmentSize)];
+        int offset = 0;
+        int i = 0;
+
+        for (; i < result.Length - 1; ++i, offset += fragmentSize)
         {
-            stream.Read(buffer, i * 1_000, 1000);
+            result[i] = input.Slice(offset, fragmentSize);
         }
 
-        var resultStr = Encoding.UTF8.GetString(buffer);
+        result[i] = input[offset..];
 
-        Assert.Equal(Source, resultStr);
+        return result;
     }
 }
