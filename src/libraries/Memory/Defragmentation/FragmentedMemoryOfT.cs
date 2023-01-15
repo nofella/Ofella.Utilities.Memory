@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Ofella.Utilities.Memory.Defragmentation;
@@ -7,10 +8,12 @@ namespace Ofella.Utilities.Memory.Defragmentation;
 /// Abstracts multiple chunks of <see cref="Memory{T}"/> as a single contiguous region, without copying them anywhere.
 /// </summary>
 /// <typeparam name="T">The type of the elements in the <see cref="FragmentedMemory{T}"/>.</typeparam>
-public readonly struct FragmentedMemory<T>
+public readonly struct FragmentedMemory<T> : IDisposable
 {
     private readonly MemoryFragment<T>[] _fragments;
+    private readonly int _fragmentCount;
     private readonly int _offset;
+    private readonly FragmentedPosition _endOfStreamPosition;
 
     /// <summary>
     /// The sum of the length of the instance's fragments.
@@ -23,8 +26,10 @@ public readonly struct FragmentedMemory<T>
     /// <param name="fragments">Fragments of memory as <see cref="Memory{T}"/> to abstract as a single contiguous region.</param>
     public FragmentedMemory(Memory<T>[] fragments)
     {
-        _fragments = new MemoryFragment<T>[fragments.Length];
+        _fragments = ArrayPool<MemoryFragment<T>>.Shared.Rent(fragments.Length);
+        _fragmentCount = fragments.Length;
         _offset = 0;
+        _endOfStreamPosition = new FragmentedPosition(fragments.Length, 0);
 
         int calculatedOffset = 0;
 
@@ -46,7 +51,9 @@ public readonly struct FragmentedMemory<T>
     public FragmentedMemory(in FragmentedMemory<T> fragmentedMemory, int offset, int length)
     {
         _fragments = fragmentedMemory._fragments;
+        _fragmentCount = fragmentedMemory._fragmentCount;
         _offset = offset;
+        _endOfStreamPosition = fragmentedMemory._endOfStreamPosition;
         Length = length;
     }
 
@@ -57,76 +64,129 @@ public readonly struct FragmentedMemory<T>
     public FragmentedMemory<T> this[Range range] => Slice(_offset + range.Start.Value, range.End.Value - range.Start.Value);
 
 
-    public void CopyTo(Memory<T> destination)
+    public FragmentedPosition CopyTo(T[] destination, FragmentedPosition? startingPositionOverride)
     {
-        CopyTo((memory, destinationOffset) =>
-        {
-            memory.CopyTo(destination[destinationOffset..]);
-        });
+        return CopyTo(ref destination[0], startingPositionOverride);
     }
 
-    public void CopyTo(T[] destination)
+    public FragmentedPosition CopyTo(Memory<T> destination, FragmentedPosition? startingPositionOverride)
     {
-        CopyTo((memory, destinationOffset) =>
-        {
-            memory.CopyTo(destination.AsMemory()[destinationOffset..]);
-        });
+        return CopyTo(ref destination.Span[0], startingPositionOverride);
     }
 
-    internal void CopyTo(Action<Memory<T>, int> copyAction)
+    public FragmentedPosition CopyTo(Span<T> destination, FragmentedPosition? startingPositionOverride)
     {
-        // Optimized for sequential copy from start: avoid the binary search if the _offset is 0.
-        var firstFragment = _offset == 0 ? (fragmentNo: 0, offset: 0) : GetFragmentAt(_offset);
+        return CopyTo(ref destination[0], startingPositionOverride);
+    }
 
-        if (firstFragment.fragmentNo == -1)
+    public async ValueTask<FragmentedPosition> CopyToAsync(Stream destination, FragmentedPosition? startingPositionOverride, CancellationToken cancellationToken = default)
+    {
+        if (_fragments is not MemoryFragment<byte>[] fragmentsOfByte)
+        {
+            throw new NotSupportedException("This method can only be used when the fragments are of type Memory<byte>, since the Stream type only supports byte streams.");
+        }
+
+        var startingPosition = startingPositionOverride ?? GetFragmentedPosition(_offset);
+
+        if (startingPosition == FragmentedPosition.NotFound)
         {
             goto EndOfStream;
         }
 
-        for (int i = firstFragment.fragmentNo, destinationOffset = 0;
-            destinationOffset < Length; ++i)
+        // Copy from first fragment: it needs special handling because it doesn't necessarily start from 0.
+        var firstFragmentMemory = fragmentsOfByte[startingPosition.FragmentNo].Memory[startingPosition.Offset..];
+        int bytesToCopy = Math.Min(firstFragmentMemory.Length, Length);
+        await destination.WriteAsync(firstFragmentMemory[..bytesToCopy], cancellationToken);
+
+        int currentFragmentNo;
+        int destinationOffset = bytesToCopy;
+
+        // Copy from subsequent fragments if needed.
+        for (currentFragmentNo = startingPosition.FragmentNo + 1;
+            destinationOffset < Length;
+            ++currentFragmentNo, destinationOffset += bytesToCopy)
         {
-            int bytesToCopy = Math.Min(_fragments[i].Memory.Length, Length - destinationOffset);
-            copyAction(_fragments[i].Memory[..bytesToCopy], destinationOffset);
-            destinationOffset += bytesToCopy;
+            bytesToCopy = Math.Min(fragmentsOfByte[currentFragmentNo].Memory.Length, Length - destinationOffset);
+            await destination.WriteAsync(fragmentsOfByte[currentFragmentNo].Memory[..bytesToCopy], cancellationToken);
         }
+
+        return new(currentFragmentNo, bytesToCopy);
 
     EndOfStream:
-        return;
+        return new(_fragmentCount, 0);
     }
 
-    internal async ValueTask CopyToAsync(Func<Memory<T>, long, CancellationToken, ValueTask> copyAction, CancellationToken cancellationToken = default)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal FragmentedPosition CopyTo(ref T destination, FragmentedPosition? startingPositionOverride)
     {
-        // Optimized for sequential copy from start: avoid the binary search if the _offset is 0.
-        var firstFragment = _offset == 0 ? (fragmentNo: 0, offset: 0) : GetFragmentAt(_offset);
+        var startingPosition = startingPositionOverride ?? GetFragmentedPosition(_offset);
 
-        // For cleaner code: separated copy logic for cases when the total length to be copied is smaller than the first segment 
-        if (Length < (uint)_fragments[0].Memory.Length)
+        if (startingPosition == FragmentedPosition.NotFound || startingPosition == _endOfStreamPosition)
         {
-            await copyAction(_fragments[0].Memory[(int)firstFragment.offset..(int)Length], 0, cancellationToken);
-            return;
+            goto EndOfStream;
         }
 
-        int destinationOffset = 0;
+        // Copy from first fragment: it needs special handling because it doesn't necessarily start from 0.
+        var firstFragmentMemory = _fragments[startingPosition.FragmentNo].Memory[startingPosition.Offset..];
+        int bytesToCopy = Math.Min(firstFragmentMemory.Length, Length);
 
-        for (int i = firstFragment.fragmentNo; destinationOffset < Length; ++i)
+        UnsafeCopyBlock(ref destination, ref firstFragmentMemory.Span[0], bytesToCopy);
+
+        int currentFragmentNo = startingPosition.FragmentNo + 1;
+        int destinationOffset = bytesToCopy;
+
+        // Copy from subsequent fragments if needed.
+        for (;
+            destinationOffset < Length;
+            ++currentFragmentNo, destinationOffset += bytesToCopy)
         {
-            int bytesToCopy = Math.Min(_fragments[i].Memory.Length, (int)Length - destinationOffset);
-            await copyAction(_fragments[i].Memory[..bytesToCopy], destinationOffset, cancellationToken);
-            destinationOffset += bytesToCopy;
+            bytesToCopy = Math.Min(_fragments[currentFragmentNo].Memory.Length, Length - destinationOffset);
+            UnsafeCopyBlock(ref destination, destinationOffset, ref _fragments[currentFragmentNo].Memory.Span[..bytesToCopy][0], bytesToCopy);
         }
+
+        var currentPosition = (startingPosition.Offset & (((bytesToCopy - destinationOffset) >>> 31) - 1)) + bytesToCopy;
+
+        return _fragments[currentFragmentNo - 1].Memory.Length != currentPosition
+            ? new(currentFragmentNo - 1, currentPosition)
+            : new(currentFragmentNo, 0);
+
+    EndOfStream:
+        return _endOfStreamPosition;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void UnsafeCopyBlock(ref T destination, ref T source, int byteCount)
+    {
+        ref byte pDestination = ref Unsafe.As<T, byte>(ref destination);
+        ref byte pSource = ref Unsafe.As<T, byte>(ref source);
+
+        Unsafe.CopyBlock(ref pDestination, ref pSource, (uint)byteCount);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void UnsafeCopyBlock<TDest, TSrc>(ref TDest destination, int destinationOffset, ref TSrc source, int byteCount)
+    {
+        ref byte pDestination = ref Unsafe.As<TDest, byte>(ref Unsafe.Add(ref destination, destinationOffset));
+        ref byte pSource = ref Unsafe.As<TSrc, byte>(ref source);
+
+        Unsafe.CopyBlock(ref pDestination, ref pSource, (uint)byteCount);
     }
 
     /// <summary>
     /// Optimized for moving to a specific offset using binary search. This method has a performance of O(log n).
     /// </summary>
     /// <param name="offset">The offset to move to.</param>
-    private (int fragmentNo, int offset) GetFragmentAt(int offset)
+    private FragmentedPosition GetFragmentedPosition(int offset)
     {
+        if (offset == 0)
+        {
+            return FragmentedPosition.Beginning;
+        }
+
         ref var fragmentsPtr = ref MemoryMarshal.GetArrayDataReference(_fragments);
 
         int lowerBoundary = 0;
-        int upperBoundary = _fragments.Length - 1;
+        int upperBoundary = _fragmentCount - 1;
         int fragmentNoToCheck;
 
         while (lowerBoundary <= upperBoundary)
@@ -144,10 +204,15 @@ public readonly struct FragmentedMemory<T>
             }
             else
             {
-                return (fragmentNoToCheck, offset - _fragments[fragmentNoToCheck].Offset);
+                return new(fragmentNoToCheck, offset - _fragments[fragmentNoToCheck].Offset);
             }
         }
 
-        return (-1, -1); // Not found.
+        return FragmentedPosition.NotFound;
+    }
+
+    public void Dispose()
+    {
+        ArrayPool<MemoryFragment<T>>.Shared.Return(_fragments);
     }
 }

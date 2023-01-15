@@ -16,4 +16,10 @@
 	  <ProjectReference Include="..\..\libraries\Memory\Ofella.Utilities.Memory.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <None Update="Defragmentation\Inputs\input-100k.txt">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
 </Project>
