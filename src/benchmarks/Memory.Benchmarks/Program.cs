@@ -4,7 +4,8 @@ using Ofella.Utilities.Memory.Benchmarks.Comparing;
 using Ofella.Utilities.Memory.Comparing;
 using System.Runtime.InteropServices;
 
-BenchmarkRunner.Run(typeof(Streaming));
+//BenchmarkRunner.Run(typeof(Streaming));
+BenchmarkRunner.Run(typeof(Copying));
 //BenchmarkRunner.Run(typeof(OptimizedSequenceEqualForDifferentLengths));
 
 //var left = (new string('x', 3) + '1').AsSpan();

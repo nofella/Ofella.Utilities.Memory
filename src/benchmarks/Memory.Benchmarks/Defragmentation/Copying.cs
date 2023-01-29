@@ -1,53 +1,52 @@
 ﻿using BenchmarkDotNet.Attributes;
+using Ofella.Utilities.Memory.Benchmarks.Defragmentation;
 using Ofella.Utilities.Memory.Defragmentation;
-using System.Runtime.CompilerServices;
 
 namespace Ofella.Utilities.Memory.Benchmark.Defragmentation;
 
 [MemoryDiagnoser]
-public class Copying
+public class Copying : DefragmentationBase
 {
-    private const int FragmentCount = 1_000;
-    private const int FragmentSize = 64_000;
-    private readonly byte[][] _memories;
-    private readonly byte[] _buffer;
-
-    public Copying()
+    public IEnumerable<object[]> Arguments()
     {
-        _memories = new byte[FragmentCount][];
-        _buffer = new byte[FragmentCount * FragmentSize];
+        //yield return new object[] { Fragments100k, Buffer100k };
+        //yield return new object[] { Fragments100M, Buffer100M };
+        yield return new object[] { Fragments1G, Buffer1G };
+    }
 
-        for (var i = 0; i < FragmentCount; ++i)
+    [Benchmark]
+    [ArgumentsSource(nameof(Arguments))]
+    public void UsingCopyFromFragmentedMemory(Memory<byte>[] fragments, byte[] buffer)
+    {
+        FragmentedMemory.Copy(fragments, buffer);
+    }
+
+    [Benchmark]
+    [ArgumentsSource(nameof(Arguments))]
+    public Task UsingAsyncCopy(Memory<byte>[] fragments, byte[] buffer)
+    {
+        return FragmentedMemory.CopyAsync(fragments, buffer);
+    }
+
+    //[Benchmark]
+    public async Task UsingMemoryStream(Memory<byte>[] fragments, byte[] buffer)
+    {
+        using var memoryStream = new MemoryStream(buffer);
+
+        foreach (var fragment in fragments)
         {
-            _memories[i] = new byte[FragmentSize];
+            await memoryStream.WriteAsync(fragment);
         }
     }
 
-    [Benchmark]
-    public void UsingCopyFromFragmentedMemory()
+    //[Benchmark]
+    public void UsingMemoryStreamWithSpans(Memory<byte>[] fragments, byte[] buffer)
     {
-        FragmentedMemory.Copy(_memories, _buffer);
-    }
+        using var memoryStream = new MemoryStream(buffer);
 
-    [Benchmark]
-    public async Task UsingMemoryStream()
-    {
-        using var memoryStream = new MemoryStream(_buffer);
-
-        foreach(var memory in _memories)
+        foreach (var fragment in fragments)
         {
-            await memoryStream.WriteAsync(memory);
-        }
-    }
-
-    [Benchmark]
-    public void UsingMemoryStreamWithSpans()
-    {
-        using var memoryStream = new MemoryStream(_buffer);
-
-        foreach (var memory in _memories)
-        {
-            memoryStream.Write(memory);
+            memoryStream.Write(fragment.Span);
         }
     }
 }

@@ -1,49 +1,23 @@
 ﻿using BenchmarkDotNet.Attributes;
+using Ofella.Utilities.Memory.Benchmarks.Defragmentation;
 using Ofella.Utilities.Memory.Defragmentation;
 
 namespace Ofella.Utilities.Memory.Benchmark.Defragmentation;
 
 [MemoryDiagnoser]
-public class Streaming
+public class Streaming : DefragmentationBase
 {
-    private readonly Memory<byte> _input100k;
-    private readonly Memory<byte>[] _fragments;
-    private readonly byte[] _buffer;
-
-    public Streaming()
-    {
-        _input100k = File.ReadAllBytes("Defragmentation\\Inputs\\input-100k.txt");
-        _fragments = CreateFixLengthFragments(_input100k, 10);
-        _buffer= new byte[100_000];
-    }
-
     [Benchmark]
     [Arguments(100)]
     public void Read(int readSize)
     {
-        var fragmentedMemory = new FragmentedMemory<byte>(_fragments);
+        var fragmentedMemory = new FragmentedMemory<byte>(Fragments100k);
         var stream = fragmentedMemory.AsStream();
 
         int offset = 0;
         int bytesRead;
 
-        while ((bytesRead = stream.Read(_buffer, offset, readSize)) > 0) offset += bytesRead;
-    }
-
-    private static Memory<byte>[] CreateFixLengthFragments(Memory<byte> input, int fragmentSize)
-    {
-        var result = new Memory<byte>[(int)Math.Ceiling(input.Length / (double)fragmentSize)];
-        int offset = 0;
-        int i = 0;
-
-        for (; i < result.Length - 1; ++i, offset += fragmentSize)
-        {
-            result[i] = input.Slice(offset, fragmentSize);
-        }
-
-        result[i] = input[offset..];
-
-        return result;
+        while ((bytesRead = stream.Read(Buffer100k, offset, readSize)) > 0) offset += bytesRead;
     }
 
     //[Benchmark]
