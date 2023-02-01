@@ -139,7 +139,7 @@ public static class FragmentedMemory
     public static Task CopyAsync<T>(Memory<T>[] sources, Memory<T> destination)
     {
         var fragmentedMemory = new FragmentedMemory<T>(sources);
-        var halfSize = fragmentedMemory.Length >>> 1; // Forcing an optimized division by 2.
+        var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
 
         // Unroll 2 copy operations instead of trying to find the max. degree of parallelism based on the number of CPU cores available.
         // It seems that on most systems not the CPU, but the available bandwidth of memory is the real bottleneck,
@@ -160,7 +160,7 @@ public static class FragmentedMemory
     public static Task CopyAsync<T>(T[][] sources, Memory<T> destination)
     {
         var fragmentedMemory = new FragmentedMemory<T>(sources);
-        var halfSize = fragmentedMemory.Length >>> 1; // Forcing an optimized division by 2.
+        var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
 
         // Unroll 2 copy operations instead of trying to find the max. degree of parallelism based on the number of CPU cores available.
         // It seems that on most systems not the CPU, but the available bandwidth of memory is the real bottleneck,
@@ -173,8 +173,8 @@ public static class FragmentedMemory
 
     private static void CopyAsyncTask<T>(object? taskState)
     {
-        var state = (TaskState<T>)taskState; // We knew that it can't be null based on the way we use it.
-        state.FragmentedMemory.CopyTo(state.Destination, null);
+        var state = (TaskState<T>)taskState!; // We knew that it can't be null based on the way we use it.
+        state.FragmentedMemory.CopyTo(state.Destination);
     }
 
     private readonly record struct TaskState<T>(FragmentedMemory<T> FragmentedMemory, Memory<T> Destination);
