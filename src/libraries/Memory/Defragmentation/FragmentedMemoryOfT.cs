@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using Ofella.Utilities.Memory.ManagedPointers;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -144,21 +145,21 @@ public readonly struct FragmentedMemory<T> : IDisposable
     /// </summary>
     /// <param name="destination">The contiguous region of memory to copy to.</param>
     /// <returns>The position after the last element of this <see cref="FragmentedMemory{T}"/> as a <see cref="FragmentedPosition"/>.</returns>
-    public FragmentedPosition CopyTo(T[] destination) => CopyTo(ref GetRef(destination));
+    public FragmentedPosition CopyTo(T[] destination) => CopyTo(ref Ptr.Get(destination));
 
     /// <summary>
     /// Copies the memory fragments represented by this <see cref="FragmentedMemory{T}"/> instance to a contiguous region of memory represented by the provided <see cref="Memory{T}"/>.
     /// </summary>
     /// <param name="destination">The contiguous region of memory to copy to.</param>
     /// <returns>The position after the last element of this <see cref="FragmentedMemory{T}"/> as a <see cref="FragmentedPosition"/>.</returns>
-    public FragmentedPosition CopyTo(Memory<T> destination) => CopyTo(ref GetRef(destination.Span));
+    public FragmentedPosition CopyTo(Memory<T> destination) => CopyTo(ref Ptr.Get(destination.Span));
 
     /// <summary>
     /// Copies the memory fragments represented by this <see cref="FragmentedMemory{T}"/> instance to a contiguous region of memory represented by the provided <see cref="Span{T}"/>.
     /// </summary>
     /// <param name="destination">The contiguous region of memory to copy to.</param>
     /// <returns>The position after the last element of this <see cref="FragmentedMemory{T}"/> as a <see cref="FragmentedPosition"/>.</returns>
-    public FragmentedPosition CopyTo(Span<T> destination) => CopyTo(ref GetRef(destination));
+    public FragmentedPosition CopyTo(Span<T> destination) => CopyTo(ref Ptr.Get(destination));
 
     /// <summary>
     /// Asynchronously copies the memory fragments represented by this <see cref="FragmentedMemory{T}"/> instance to a contiguous region of memory represented by a managed pointer.
@@ -242,7 +243,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
         var firstFragmentMemory = _fragments[startingPosition.FragmentNo].Memory[startingPosition.Offset..];
         int copyCount = Math.Min(firstFragmentMemory.Length, Length);
 
-        UnsafeCopyBlock(ref destination, ref GetRef(firstFragmentMemory.Span), copyCount);
+        Ptr.UnalignedCopy(ref destination, ref Ptr.Get(firstFragmentMemory.Span), copyCount);
 
         int currentFragmentNo = startingPosition.FragmentNo + 1;
         ref T pDestination = ref Unsafe.Add(ref destination, copyCount);
@@ -254,7 +255,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
             ++currentFragmentNo, pDestination = ref Unsafe.Add(ref pDestination, copyCount))
         {
             copyCount = Math.Min(_fragments[currentFragmentNo].Memory.Length, (int)Unsafe.ByteOffset(ref pDestination, ref boundary));
-            UnsafeCopyBlock(ref pDestination, ref GetRef(_fragments[currentFragmentNo].Memory.Span[..copyCount]), copyCount);
+            Ptr.UnalignedCopy(ref pDestination, ref Ptr.Get(_fragments[currentFragmentNo].Memory.Span[..copyCount]), copyCount);
         }
 
         // If destinationOffset > copyCount we copied from more than one fragment, so the currentPosition would simply be the copyCount.
@@ -273,22 +274,6 @@ public readonly struct FragmentedMemory<T> : IDisposable
     }
 
     /// <summary>
-    /// Generalized Unsafe.CopyBlock. This method does not (actually cannot) check boundaries.
-    /// </summary>
-    /// <typeparam name="T">The type of the items that the destination and source managed pointers point to.</typeparam>
-    /// <param name="destination">The managed pointer corresponding to the destination address to copy to.</param>
-    /// <param name="source">The managed pointer corresponding to the source address to copy from.</param>
-    /// <param name="count">The number of items to copy.</param>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void UnsafeCopyBlock(ref T destination, ref T source, int count)
-    {
-        Unsafe.CopyBlockUnaligned(
-            ref Unsafe.As<T, byte>(ref destination),
-            ref Unsafe.As<T, byte>(ref source),
-            (uint)(count * Unsafe.SizeOf<T>()));
-    }
-
-    /// <summary>
     /// Gets the <see cref="FragmentedPosition"/> of a specific offset.
     /// </summary>
     /// <param name="offset">The offset to find the <see cref="FragmentedPosition"/> for.</param>
@@ -296,7 +281,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)] // Only implemented in a separate method for readability. Longer/redundant code is better than emitting a call here.
     private FragmentedPosition GetFragmentedPosition(int offset)
     {
-        ref var fragment = ref GetRef(_fragments);
+        ref var fragment = ref Ptr.Get(_fragments);
 
         int lowerBoundary = 0;
         int upperBoundary = _fragmentCount - 1;
@@ -324,24 +309,6 @@ public readonly struct FragmentedMemory<T> : IDisposable
 
         return FragmentedPosition.NotFound;
     }
-
-    /// <summary>
-    /// Helper method for getting a managed pointer to the 0th element of a span without checking boundaries.
-    /// </summary>
-    /// <typeparam name="TElement">The type of the elements in the span.</typeparam>
-    /// <param name="array">The span to return a managed pointer to.</param>
-    /// <returns>A managed pointer to the 0th element of the span.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref TElement GetRef<TElement>(Span<TElement> span) => ref MemoryMarshal.GetReference(span);
-
-    /// <summary>
-    /// Helper method for getting a managed pointer to the 0th element of an array without checking boundaries.
-    /// </summary>
-    /// <typeparam name="TElement">The type of the elements in the array.</typeparam>
-    /// <param name="array">The array to return a managed pointer to.</param>
-    /// <returns>A managed pointer to the 0th element of the array.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ref TElement GetRef<TElement>(TElement[] array) => ref MemoryMarshal.GetArrayDataReference(array);
 
     #endregion
 }

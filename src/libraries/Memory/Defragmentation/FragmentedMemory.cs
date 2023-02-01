@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using Ofella.Utilities.Memory.ManagedPointers;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -17,14 +18,15 @@ public static class FragmentedMemory
     [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
     public static void Copy<T>(Memory<T>[] sources, Span<T> destination)
     {
-        ref var source = ref MemoryMarshal.GetArrayDataReference(sources);
-        ref T currentDestination = ref MemoryMarshal.GetReference(destination);
+        ref var source = ref Ptr.Get(sources);
+        ref T currentDestination = ref Ptr.Get(destination);
         ref var boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
-        for (; Unsafe.IsAddressLessThan(ref source, ref boundary);
+        for (;
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
             currentDestination = ref Unsafe.Add(ref currentDestination, source.Length), source = ref Unsafe.Add(ref source, 1))
         {
-            source.Span.CopyTo(MemoryMarshal.CreateSpan(ref currentDestination, source.Length));
+            Ptr.UnalignedCopy(ref currentDestination, ref Ptr.Get(source.Span), source.Length);
         }
     }
 
@@ -36,11 +38,12 @@ public static class FragmentedMemory
     [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
     public static void Copy(Memory<byte>[] sources, Stream destination)
     {
-        ref var source = ref MemoryMarshal.GetArrayDataReference(sources);
+        ref var source = ref Ptr.Get(sources);
         ref var boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
         // Fastest way to loop in NET7
-        for (; Unsafe.IsAddressLessThan(ref source, ref boundary);
+        for (;
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
             source = ref Unsafe.Add(ref source, 1))
         {
             destination.Write(source.Span);
@@ -77,15 +80,16 @@ public static class FragmentedMemory
     public static void Copy<T>(T[][] sources, Span<T> destination)
     {
         // Types are specified explicitly, because the implicitly determined ones are wrong (T[]? and T?)
-        ref T[] source = ref MemoryMarshal.GetArrayDataReference(sources);
-        ref T currentDestination = ref MemoryMarshal.GetReference(destination);
+        ref T[] source = ref Ptr.Get(sources);
+        ref T currentDestination = ref Ptr.Get(destination);
         ref T[] boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
         // Fastest way to loop in NET7
-        for (; Unsafe.IsAddressLessThan(ref source, ref boundary);
+        for (;
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
             currentDestination = ref Unsafe.Add(ref currentDestination, source.Length), source = ref Unsafe.Add(ref source, 1))
         {
-            source.CopyTo(MemoryMarshal.CreateSpan(ref currentDestination, source.Length));
+            Ptr.UnalignedCopy(ref currentDestination, ref Ptr.Get(source), source.Length);
         }
     }
 
@@ -98,11 +102,12 @@ public static class FragmentedMemory
     public static void Copy(byte[][] sources, Stream destination)
     {
         // Types are specified explicitly, because the implicitly determined ones are wrong (byte[])
-        ref byte[] source = ref MemoryMarshal.GetArrayDataReference(sources);
+        ref byte[] source = ref Ptr.Get(sources);
         ref byte[] boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
         // Fastest way to loop in NET7
-        for (; Unsafe.IsAddressLessThan(ref source, ref boundary);
+        for (;
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
             source = ref Unsafe.Add(ref source, 1))
         {
             destination.Write(source, 0, source.Length);
