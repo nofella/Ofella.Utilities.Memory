@@ -32,46 +32,53 @@ public readonly struct FragmentedMemory<T> : IDisposable
     #region Lifecycle
 
     /// <summary>
-    /// Creates an instance of <see cref="FragmentedMemory{T}"/> by providing its <paramref name="fragments"/> as instances of <see cref="Memory{T}"/>.
+    /// Creates an instance of <see cref="FragmentedMemory{T}"/> by providing its <paramref name="memories"/> as instances of <see cref="Memory{T}"/>.
     /// </summary>
-    /// <param name="fragments">Fragments of memory as <see cref="Memory{T}"/> to abstract as a single contiguous sequence.</param>
-    public FragmentedMemory(Memory<T>[] fragments)
+    /// <param name="memories">Fragments of memory as <see cref="Memory{T}"/> to abstract as a single contiguous sequence.</param>
+    public FragmentedMemory(Memory<T>[] memories)
     {
-        _fragments = ArrayPool<MemoryFragment<T>>.Shared.Rent(fragments.Length);
-        _fragmentCount = fragments.Length;
-        _offset = 0;
-
-        int calculatedOffset = 0;
-
-        for (int i = 0; i < fragments.Length; ++i)
-        {
-            _fragments[i] = new(fragments[i], calculatedOffset);
-            calculatedOffset += fragments[i].Length;
-        }
-
-        Length = calculatedOffset;
-    }
-
-    /// <summary>
-    /// Creates an instance of <see cref="FragmentedMemory{T}"/> by providing its <paramref name="fragments"/> as array of <see cref="T:T[]"/>.
-    /// </summary>
-    /// <param name="fragments">Fragments of memory as <see cref="T:T[]"/> to abstract as a single contiguous sequence.</param>
-    public FragmentedMemory(T[][] fragments)
-    {
-        _fragments = ArrayPool<MemoryFragment<T>>.Shared.Rent(fragments.Length);
-        _fragmentCount = fragments.Length;
+        _fragments = ArrayPool<MemoryFragment<T>>.Shared.Rent(memories.Length);
+        _fragmentCount = memories.Length;
         _offset = 0;
         _fragmentedPosition = FragmentedPosition.Beginning;
 
-        int calculatedOffset = 0;
+        ref var memory = ref Ptr.Get(memories);
+        ref var memoriesBoundary = ref Unsafe.Add(ref memory, memories.Length);
+        ref var fragment = ref Ptr.Get(_fragments);
+        ref var fragmentsBoundary = ref Unsafe.Add(ref fragment, _fragments.Length);
 
-        for (int i = 0; i < fragments.Length; ++i)
+        for (;
+            Unsafe.IsAddressLessThan(ref memory, ref memoriesBoundary);
+            memory = ref Unsafe.Add(ref memory, 1), fragment = ref Unsafe.Add(ref fragment, 1))
         {
-            _fragments[i] = new(fragments[i], calculatedOffset);
-            calculatedOffset += fragments[i].Length;
+            fragment = new(memory, Length);
+            Length += memory.Length; // Length is calculated by incrementing it by the current memory's length, there Length is the current fragment's offset too.
         }
+    }
 
-        Length = calculatedOffset;
+    /// <summary>
+    /// Creates an instance of <see cref="FragmentedMemory{T}"/> by providing its <paramref name="arrays"/> as array of <see cref="T:T[]"/>.
+    /// </summary>
+    /// <param name="arrays">Fragments of memory as <see cref="T:T[]"/> to abstract as a single contiguous sequence.</param>
+    public FragmentedMemory(T[][] arrays)
+    {
+        _fragments = ArrayPool<MemoryFragment<T>>.Shared.Rent(arrays.Length);
+        _fragmentCount = arrays.Length;
+        _offset = 0;
+        _fragmentedPosition = FragmentedPosition.Beginning;
+
+        ref T[] array = ref Ptr.Get(arrays);
+        ref T[] arraysBoundary = ref Unsafe.Add(ref array, arrays.Length);
+        ref var fragment = ref Ptr.Get(_fragments);
+        ref var fragmentsBoundary = ref Unsafe.Add(ref fragment, _fragments.Length);
+
+        for (;
+            Unsafe.IsAddressLessThan(ref array, ref arraysBoundary);
+            array = ref Unsafe.Add(ref array, 1), fragment = ref Unsafe.Add(ref fragment, 1))
+        {
+            fragment = new(array, Length);
+            Length += array.Length; // Length is calculated by incrementing it by the current array's length, there Length is the current fragment's offset too.
+        }
     }
 
     /// <summary>
