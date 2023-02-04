@@ -53,7 +53,7 @@ public class FragmentedMemoryTests
         var fragments = CreateFixLengthFragments(_input100k, fragmentSize);
         var buffer = new byte[100_000];
 
-        await FragmentedMemory.CopyAsync(fragments, buffer);
+        await FragmentedMemory.CopyParallelAsync(fragments, buffer);
 
         Assert.True(_input100k.Span.SequenceEqual(buffer));
     }

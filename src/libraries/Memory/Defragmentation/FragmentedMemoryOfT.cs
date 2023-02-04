@@ -1,7 +1,6 @@
 ﻿using Ofella.Utilities.Memory.ManagedPointers;
 using System.Buffers;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Ofella.Utilities.Memory.Defragmentation;
 

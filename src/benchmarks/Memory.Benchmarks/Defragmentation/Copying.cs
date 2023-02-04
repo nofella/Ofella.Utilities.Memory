@@ -25,7 +25,7 @@ public class Copying : DefragmentationBase
     [ArgumentsSource(nameof(Arguments))]
     public Task UsingAsyncCopy(Memory<byte>[] fragments, byte[] buffer)
     {
-        return FragmentedMemory.CopyAsync(fragments, buffer);
+        return FragmentedMemory.CopyParallelAsync(fragments, buffer);
     }
 
     //[Benchmark]

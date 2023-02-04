@@ -1,7 +1,5 @@
 ﻿using Ofella.Utilities.Memory.ManagedPointers;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Ofella.Utilities.Memory.Defragmentation;
 
@@ -136,12 +134,13 @@ public static class FragmentedMemory
 
     /// <summary>
     /// Asynchronously defragments a region of memory represented by <see cref="Memory{T}"/> instances by copying them in the provided order to a contiguous destination represented by a single <see cref="Memory{T}"/> instance.
+    /// This method operates in a parallel way using 2 concurrent tasks of which the first one copies to the first half of the destination, and the second one copies to the second half of the destination.
     /// </summary>
     /// <typeparam name="T">The type of the elements in <paramref name="sources"/> and <paramref name="destination"/>.</typeparam>
     /// <param name="sources">The fragmented memory region.</param>
     /// <param name="destination">A contiguous region of memory to defragment into.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous copy operation.</returns>
-    public static Task CopyAsync<T>(Memory<T>[] sources, Memory<T> destination)
+    public static Task CopyParallelAsync<T>(Memory<T>[] sources, Memory<T> destination)
     {
         var fragmentedMemory = new FragmentedMemory<T>(sources);
         var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
@@ -157,12 +156,13 @@ public static class FragmentedMemory
 
     /// <summary>
     /// Asynchronously defragments a region of memory represented by instances of <see cref="T:T[]"/> by copying them in the provided order to a contiguous destination represented by a single array of <see cref="T"/>.
+    /// This method operates in a parallel way using 2 concurrent tasks of which the first one copies to the first half of the destination, and the second one copies to the second half of the destination.
     /// </summary>
     /// <typeparam name="T">The type of the elements in <paramref name="sources"/> and <paramref name="destination"/>.</typeparam>
     /// <param name="sources">The fragmented memory region.</param>
     /// <param name="destination">A contiguous region of memory to defragment into.</param>
     /// <returns>A <see cref="Task"/> that represents the asynchronous copy operation.</returns>
-    public static Task CopyAsync<T>(T[][] sources, Memory<T> destination)
+    public static Task CopyParallelAsync<T>(T[][] sources, Memory<T> destination)
     {
         var fragmentedMemory = new FragmentedMemory<T>(sources);
         var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
