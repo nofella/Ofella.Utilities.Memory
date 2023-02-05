@@ -18,7 +18,7 @@ public class FragmentedMemoryReaderStream : Stream
     /// <summary>
     /// Creates a FragmentedMemoryStream from the provided <see cref="FragmentedMemory{T}"/>.
     /// </summary>
-    /// <param name="fragmentedMemory">The <see cref="FragmentedMemory{T}"/> to create a Stream from.</param>
+    /// <param name="fragmentedMemory">The <see cref="FragmentedMemory{T}"/> to create a Stream from. The stream won't become the owner of this instance, hence no disposing of it will take place.</param>
     public FragmentedMemoryReaderStream(in FragmentedMemory<byte> fragmentedMemory)
     {
         _fragmentedMemory = fragmentedMemory;
@@ -123,7 +123,7 @@ public class FragmentedMemoryReaderStream : Stream
                 Position += offset;
                 break;
             case SeekOrigin.End:
-                Position = Length - offset - 1;
+                Position = Length - offset;
                 break;
         }
 

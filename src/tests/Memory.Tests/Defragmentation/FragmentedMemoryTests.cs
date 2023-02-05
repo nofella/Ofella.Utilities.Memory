@@ -1,76 +1,95 @@
-﻿using System.IO;
-using System;
+﻿using Ofella.Utilities.Memory.Defragmentation;
 using Xunit;
-using Ofella.Utilities.Memory.Defragmentation;
-using System.Linq;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Ofella.Utilities.Memory.Tests.Defragmentation;
 
-public class FragmentedMemoryTests
+public class FragmentedMemoryTests : BaseTest
 {
-    private readonly Memory<byte> _input100k;
-
-    public FragmentedMemoryTests()
+    [Theory]
+    [MemberData(nameof(FilterArrayCases), typeof(Memory<Any>), null, DisableDiscoveryEnumeration = true)]
+    protected void CopyMemoryArrayToSpan<T>(TestCaseInput<Memory<Any>, T> input)
     {
-        _input100k = File.ReadAllBytes("Defragmentation\\Inputs\\input-100k.txt");
-    }
+        T[] buffer = new T[100_000];
 
-    public static IEnumerable<object[]> TestData()
-    {
-        yield return new object[] { 1 };
-        yield return new object[] { 10 };
-        yield return new object[] { 100 };
-        yield return new object[] { 1_000 };
-        yield return new object[] { 10_000 };
-        yield return new object[] { 100_000 };
-        yield return new object[] { 32 };
-        yield return new object[] { 64 };
-        yield return new object[] { 128 };
-        yield return new object[] { 512 };
-        yield return new object[] { 950 };
-        yield return new object[] { 1024 };
-        yield return new object[] { 4096 };
+        FragmentedMemory.Copy(input.Memories!, buffer.AsSpan());
+
+        AssertEqualBuffers(buffer);
     }
 
     [Theory]
-    [MemberData(nameof(TestData))]
-    public void CopyMemoryArrayToByteArray(int fragmentSize)
+    [MemberData(nameof(FilterArrayCases), typeof(Memory<Any>), typeof(byte), DisableDiscoveryEnumeration = true)]
+    protected void CopyMemoryArrayToStream(TestCaseInput<Memory<Any>, byte> input)
     {
-        var fragments = CreateFixLengthFragments(_input100k, fragmentSize);
-        var buffer = new byte[100_000];
+        using var stream = new MemoryStream(new byte[100_000]);
 
-        FragmentedMemory.Copy(fragments, buffer);
+        FragmentedMemory.Copy(input.Memories!, stream);
 
-        Assert.True(_input100k.Span.SequenceEqual(buffer));
+        AssertEqualBuffers(stream.ToArray());
     }
 
     [Theory]
-    [MemberData(nameof(TestData))]
-    public async Task CopyMemoryArrayToByteArrayAsync(int fragmentSize)
+    [MemberData(nameof(FilterArrayCases), typeof(Memory<Any>), typeof(byte), DisableDiscoveryEnumeration = true)]
+    protected async ValueTask CopyMemoryArrayToStreamAsync(TestCaseInput<Memory<Any>, byte> input)
     {
-        var fragments = CreateFixLengthFragments(_input100k, fragmentSize);
-        var buffer = new byte[100_000];
+        using var stream = new MemoryStream(new byte[100_000]);
 
-        await FragmentedMemory.CopyParallelAsync(fragments, buffer);
+        await FragmentedMemory.CopyAsync(input.Memories!, stream);
 
-        Assert.True(_input100k.Span.SequenceEqual(buffer));
+        AssertEqualBuffers(stream.ToArray());
     }
 
-    private static Memory<byte>[] CreateFixLengthFragments(Memory<byte> input, int fragmentSize)
+    [Theory]
+    [MemberData(nameof(FilterArrayCases), typeof(Array), null, DisableDiscoveryEnumeration = true)]
+    protected void CopyJaggedArrayToSpan<T>(TestCaseInput<Array, T> input)
     {
-        var result = new Memory<byte>[(int)Math.Ceiling(input.Length / (double)fragmentSize)];
-        int offset = 0;
-        int i = 0;
+        T[] buffer = new T[100_000];
 
-        for (; i < result.Length - 1; ++i, offset += fragmentSize)
-        {
-            result[i] = input.Slice(offset, fragmentSize);
-        }
+        FragmentedMemory.Copy(input.Arrays!, buffer.AsSpan());
 
-        result[i] = input[offset..];
+        AssertEqualBuffers(buffer);
+    }
 
-        return result;
+    [Theory]
+    [MemberData(nameof(FilterArrayCases), typeof(Array), typeof(byte), DisableDiscoveryEnumeration = true)]
+    protected void CopyJaggedArrayToStream(TestCaseInput<Array, byte> input)
+    {
+        using var stream = new MemoryStream(new byte[100_000]);
+
+        FragmentedMemory.Copy(input.Arrays!, stream);
+
+        AssertEqualBuffers(stream.ToArray());
+    }
+
+    [Theory]
+    [MemberData(nameof(FilterArrayCases), typeof(Array), typeof(byte), DisableDiscoveryEnumeration = true)]
+    protected async ValueTask CopyJaggedArrayToStreamAsync(TestCaseInput<Array, byte> input)
+    {
+        using var stream = new MemoryStream(new byte[100_000]);
+
+        await FragmentedMemory.CopyAsync(input.Arrays!, stream);
+
+        AssertEqualBuffers(stream.ToArray());
+    }
+
+    [Theory]
+    [MemberData(nameof(FilterArrayCases), typeof(Memory<Any>), null, DisableDiscoveryEnumeration = true)]
+    protected async ValueTask CopyMemoryArrayToMemoryParallelAsync<T>(TestCaseInput<Memory<Any>, T> input)
+    {
+        T[] buffer = new T[100_000];
+
+        await FragmentedMemory.CopyParallelAsync(input.Memories!, buffer.AsMemory());
+
+        AssertEqualBuffers(buffer);
+    }
+
+    [Theory]
+    [MemberData(nameof(FilterArrayCases), typeof(Array), null, DisableDiscoveryEnumeration = true)]
+    protected async ValueTask CopyJaggedArrayToMemoryParallelAsync<T>(TestCaseInput<Array, T> input)
+    {
+        T[] buffer = new T[100_000];
+
+        await FragmentedMemory.CopyParallelAsync(input.Arrays!, buffer.AsMemory());
+
+        AssertEqualBuffers(buffer);
     }
 }

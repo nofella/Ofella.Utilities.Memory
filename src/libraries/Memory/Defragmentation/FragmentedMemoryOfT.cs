@@ -86,7 +86,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
     /// <param name="fragmentedMemory">The instance to slice.</param>
     /// <param name="offset">The (inclusive) offset to slice from.</param>
     /// <param name="length">The length of the slice.</param>
-    public FragmentedMemory(in FragmentedMemory<T> fragmentedMemory, int offset, int length)
+    private FragmentedMemory(in FragmentedMemory<T> fragmentedMemory, int offset, int length)
     {
         _fragments = fragmentedMemory._fragments;
         _fragmentCount = fragmentedMemory._fragmentCount;
@@ -101,7 +101,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
     /// <param name="fragmentedMemory">The instance to slice.</param>
     /// <param name="fragmentedPosition">The (inclusive) <see cref="FragmentedPosition"/> to slice from.</param>
     /// <param name="length">The length of the slice.</param>
-    public FragmentedMemory(in FragmentedMemory<T> fragmentedMemory, FragmentedPosition fragmentedPosition, int length)
+    private FragmentedMemory(in FragmentedMemory<T> fragmentedMemory, FragmentedPosition fragmentedPosition, int length)
     {
         _fragments = fragmentedMemory._fragments;
         _fragmentCount = fragmentedMemory._fragmentCount;
