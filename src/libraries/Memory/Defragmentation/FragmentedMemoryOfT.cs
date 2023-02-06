@@ -137,8 +137,10 @@ public readonly struct FragmentedMemory<T> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public FragmentedMemory<T> Slice(FragmentedPosition fragmentedPosition, int length)
     {
-        // Disallow this type of slicing when the instance is already sliced by offset.
-        if (_offset <= 0) // Favor this branch when BPU has not enough information.
+        // Disallow this type of slicing when the instance is already sliced. The instance is sliced when the _fragmentedPosition is not Beginning.
+        // When sliced by offset: NotFound.
+        // When sliced by FragmentedPosition: any arbitrary value. It's not a problem if it's sliced by FragmentedPosition from the beginning, because that's the default value.
+        if (_fragmentedPosition == FragmentedPosition.Beginning) // Favor this branch when BPU has not enough information.
         {
             return new(in this, fragmentedPosition, length);
         }
@@ -195,7 +197,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
         var firstFragmentMemory = fragmentsOfByte[startingPosition.FragmentNo].Memory[startingPosition.Offset..];
         int copyCount = Math.Min(firstFragmentMemory.Length, Length);
 
-        await destination.WriteAsync(firstFragmentMemory, cancellationToken);
+        await destination.WriteAsync(firstFragmentMemory[..copyCount], cancellationToken);
 
         int currentFragmentNo = startingPosition.FragmentNo + 1;
         int destinationOffset = copyCount;

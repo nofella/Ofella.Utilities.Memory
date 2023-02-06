@@ -6,7 +6,7 @@ namespace Ofella.Utilities.Memory.Tests.Defragmentation;
 public class FragmentedMemoryReaderStreamTests : BaseTest
 {
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true, DisableDiscoveryEnumeration = true)]
     public void Read(FragmentedMemory<byte> fragmentedMemory, int readSize)
     {
         var stream = fragmentedMemory.AsStream();
@@ -21,7 +21,7 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void ReadByte(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
@@ -39,7 +39,7 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void CopyTo(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
@@ -53,21 +53,21 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
-    public void CopyToAsync(FragmentedMemory<byte> fragmentedMemory)
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
+    public async Task CopyToAsync(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
 
         var buffer = new byte[100_000];
         using var memoryStream = new MemoryStream(buffer);
 
-        stream.CopyToAsync(memoryStream);
+        await stream.CopyToAsync(memoryStream);
 
         Assert.True(ByteArray100k.AsSpan().SequenceEqual(buffer));
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true)] // Using ReadSizes as input for offset
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true, DisableDiscoveryEnumeration = true)] // Using ReadSizes as input for offset
     public void SeekFromBeginning(FragmentedMemory<byte> fragmentedMemory, int offset)
     {
         var stream = fragmentedMemory.AsStream();
@@ -78,7 +78,7 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true)] // Using ReadSizes as input for offset
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true, DisableDiscoveryEnumeration = true)] // Using ReadSizes as input for offset
     public void SeekFromCurrent(FragmentedMemory<byte> fragmentedMemory, int offset)
     {
         var stream = fragmentedMemory.AsStream();
@@ -90,7 +90,7 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true)] // Using ReadSizes as input for offset
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true, DisableDiscoveryEnumeration = true)] // Using ReadSizes as input for offset
     public void SeekFromEnd(FragmentedMemory<byte> fragmentedMemory, int offset)
     {
         var stream = fragmentedMemory.AsStream();
@@ -101,7 +101,19 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, true, DisableDiscoveryEnumeration = true)] // Using ReadSizes as input for offset
+    public void SeekFromInvalid(FragmentedMemory<byte> fragmentedMemory, int offset)
+    {
+        var stream = fragmentedMemory.AsStream();
+
+        var previousPosition = stream.Position;
+        stream.Seek(offset, (SeekOrigin)12);
+
+        Assert.Equal(previousPosition, stream.Position);
+    }
+
+    [Theory]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void CanReadIsTrue(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
@@ -110,7 +122,7 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void CanSeekIsTrue(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
@@ -119,7 +131,7 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void CanWriteIsFalse(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
@@ -128,7 +140,7 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void FlushIsNotSupported(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
@@ -137,16 +149,16 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
-    public void FlushAsyncIsNotSupported(FragmentedMemory<byte> fragmentedMemory)
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
+    public async Task FlushAsyncIsNotSupported(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
 
-        Assert.ThrowsAsync<NotSupportedException>(() => stream.FlushAsync());
+        await Assert.ThrowsAsync<NotSupportedException>(() => stream.FlushAsync());
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void SetLengthIsNotSupported(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
@@ -155,16 +167,16 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
-    public void WriteAsyncIsNotSupported(FragmentedMemory<byte> fragmentedMemory)
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
+    public async Task WriteAsyncIsNotSupported(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();
 
-        Assert.ThrowsAsync<NotSupportedException>(() => stream.WriteAsync(new byte[10]).AsTask());
+        await Assert.ThrowsAsync<NotSupportedException>(() => stream.WriteAsync(new byte[10]).AsTask());
     }
 
     [Theory]
-    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false)]
+    [MemberData(memberName: nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
     public void WriteByteIsNotSupported(FragmentedMemory<byte> fragmentedMemory)
     {
         var stream = fragmentedMemory.AsStream();

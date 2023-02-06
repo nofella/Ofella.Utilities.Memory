@@ -29,7 +29,7 @@ public class FragmentedMemoryTests : BaseTest
 
     [Theory]
     [MemberData(nameof(FilterArrayCases), typeof(Memory<Any>), typeof(byte), DisableDiscoveryEnumeration = true)]
-    protected async ValueTask CopyMemoryArrayToStreamAsync(TestCaseInput<Memory<Any>, byte> input)
+    protected async Task CopyMemoryArrayToStreamAsync(TestCaseInput<Memory<Any>, byte> input)
     {
         using var stream = new MemoryStream(new byte[100_000]);
 
@@ -62,7 +62,7 @@ public class FragmentedMemoryTests : BaseTest
 
     [Theory]
     [MemberData(nameof(FilterArrayCases), typeof(Array), typeof(byte), DisableDiscoveryEnumeration = true)]
-    protected async ValueTask CopyJaggedArrayToStreamAsync(TestCaseInput<Array, byte> input)
+    protected async Task CopyJaggedArrayToStreamAsync(TestCaseInput<Array, byte> input)
     {
         using var stream = new MemoryStream(new byte[100_000]);
 
@@ -73,7 +73,7 @@ public class FragmentedMemoryTests : BaseTest
 
     [Theory]
     [MemberData(nameof(FilterArrayCases), typeof(Memory<Any>), null, DisableDiscoveryEnumeration = true)]
-    protected async ValueTask CopyMemoryArrayToMemoryParallelAsync<T>(TestCaseInput<Memory<Any>, T> input)
+    protected async Task CopyMemoryArrayToMemoryParallelAsync<T>(TestCaseInput<Memory<Any>, T> input)
     {
         T[] buffer = new T[100_000];
 
@@ -84,7 +84,7 @@ public class FragmentedMemoryTests : BaseTest
 
     [Theory]
     [MemberData(nameof(FilterArrayCases), typeof(Array), null, DisableDiscoveryEnumeration = true)]
-    protected async ValueTask CopyJaggedArrayToMemoryParallelAsync<T>(TestCaseInput<Array, T> input)
+    protected async Task CopyJaggedArrayToMemoryParallelAsync<T>(TestCaseInput<Array, T> input)
     {
         T[] buffer = new T[100_000];
 

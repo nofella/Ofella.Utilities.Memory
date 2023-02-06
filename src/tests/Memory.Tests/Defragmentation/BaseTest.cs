@@ -1,5 +1,4 @@
 ﻿using Ofella.Utilities.Memory.Defragmentation;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,26 +8,48 @@ namespace Ofella.Utilities.Memory.Tests.Defragmentation;
 
 public abstract class BaseTest
 {
-    private static readonly int[] FragmentAndReadSizes = new int[] { 1, 10, 100, 1_000, 10_000, 100_000, 32, 64, 128, 512, 950, 1024, 4096 };
+    private static readonly int[] FragmentAndReadSizes = new int[] { 1, 10, 100, 1_000, 10_000, 100_000, 32, 64, 128, 512, 950, 1024, 4096, 33_333, 64_112, 150_000 };
 
-    protected static readonly byte[] ByteArray100k;
-    protected static readonly short[] ShortArray100k;
+    protected static byte[] ByteArray100k;
+    protected static sbyte[] SByteArray100k;
+    protected static ushort[] UShortArray100k;
+    protected static short[] ShortArray100k;
+    protected static uint[] UIntArray100k;
+    protected static int[] IntArray100k;
+    protected static ulong[] ULongArray100k;
+    protected static long[] LongArray100k;
 
     static BaseTest()
     {
-        ByteArray100k = File.ReadAllBytes("Defragmentation\\Inputs\\input-100k.txt");
-        ShortArray100k = ReinterpretArray<short>(ByteArray100k).Concat(ReinterpretArray<short>(ByteArray100k)).ToArray();
+        InitArrays(); // For the first test run per class (xUnit does not wait for the non-static ctor to finish when executing the method in MemberData)
     }
 
-    public static void AssertEqualBuffers<T>(T[] actual)
+    protected BaseTest()
+    {
+        InitArrays(); // For reinitialization for each test run
+    }
+
+    private static void InitArrays()
+    {
+        ByteArray100k = File.ReadAllBytes("Defragmentation\\Inputs\\input-100k.txt");
+        SByteArray100k = ReinterpretArray<sbyte>(ByteArray100k);
+        UShortArray100k = ReinterpretArray<ushort>(ByteArray100k).Concat(ReinterpretArray<ushort>(ByteArray100k)).ToArray();
+        ShortArray100k = ReinterpretArray<short>(ByteArray100k).Concat(ReinterpretArray<short>(ByteArray100k)).ToArray();
+        UIntArray100k = ReinterpretArray<uint>(ByteArray100k).Concat(ReinterpretArray<uint>(ByteArray100k)).Concat(ReinterpretArray<uint>(ByteArray100k)).Concat(ReinterpretArray<uint>(ByteArray100k)).ToArray();
+        IntArray100k = ReinterpretArray<int>(ByteArray100k).Concat(ReinterpretArray<int>(ByteArray100k)).Concat(ReinterpretArray<int>(ByteArray100k)).Concat(ReinterpretArray<int>(ByteArray100k)).ToArray();
+        ULongArray100k = ReinterpretArray<ulong>(ByteArray100k).Concat(ReinterpretArray<ulong>(ByteArray100k)).Concat(ReinterpretArray<ulong>(ByteArray100k)).Concat(ReinterpretArray<ulong>(ByteArray100k)).Concat(ReinterpretArray<ulong>(ByteArray100k)).Concat(ReinterpretArray<ulong>(ByteArray100k)).Concat(ReinterpretArray<ulong>(ByteArray100k)).Concat(ReinterpretArray<ulong>(ByteArray100k)).ToArray();
+        LongArray100k = ReinterpretArray<long>(ByteArray100k).Concat(ReinterpretArray<long>(ByteArray100k)).Concat(ReinterpretArray<long>(ByteArray100k)).Concat(ReinterpretArray<long>(ByteArray100k)).Concat(ReinterpretArray<long>(ByteArray100k)).Concat(ReinterpretArray<long>(ByteArray100k)).Concat(ReinterpretArray<long>(ByteArray100k)).Concat(ReinterpretArray<long>(ByteArray100k)).ToArray();
+    }
+
+    public static void AssertEqualBuffers<T>(T[] actual, int length = 100_000)
     {
         if (actual is byte[] byteBuffer)
         {
-            Assert.True(byteBuffer.SequenceEqual(ByteArray100k));
+            Assert.True(byteBuffer.AsSpan().SequenceEqual(ByteArray100k.AsSpan()[..length]));
         }
         else if (actual is short[] shortBuffer)
         {
-            Assert.True(shortBuffer.SequenceEqual(ShortArray100k));
+            Assert.True(shortBuffer.AsSpan().SequenceEqual(ShortArray100k.AsSpan()[..length]));
         }
         else
         {
@@ -70,7 +91,7 @@ public abstract class BaseTest
 
             Type[] genericTypeParams = parameter[0].GetType().GenericTypeArguments;
 
-            if (arrayType != null && (genericTypeParams[0] != arrayType )) continue;
+            if (arrayType != null && (genericTypeParams[0] != arrayType)) continue;
             if (elementType != null && genericTypeParams[1] != elementType) continue;
 
             yield return parameter;
@@ -132,10 +153,11 @@ public abstract class BaseTest
 
         for (; i < result.Length - 1; ++i, offset += fragmentSize)
         {
-            result[i] = input.Slice(offset, fragmentSize);
+            result[i] = input.Slice(offset, Math.Min(fragmentSize, input.Length));
         }
 
-        result[i] = input[offset..];
+        if (i < result.Length)
+            result[i] = input[offset..];
 
         return result;
     }
@@ -148,10 +170,11 @@ public abstract class BaseTest
 
         for (; i < result.Length - 1; ++i, offset += fragmentSize)
         {
-            result[i] = input.Slice(offset, fragmentSize).ToArray();
+            result[i] = input.Slice(offset, Math.Min(fragmentSize, input.Length)).ToArray();
         }
 
-        result[i] = input[offset..].ToArray();
+        if (i < result.Length)
+            result[i] = input[offset..].ToArray();
 
         return result;
     }
