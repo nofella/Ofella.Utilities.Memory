@@ -16,6 +16,27 @@ public readonly struct FragmentedMemory<T> : IDisposable
     private readonly int _fragmentCount; // Used for boundary checking, since _fragments comes from an ArrayPool which probably causing its size to be greater than requested.
     private readonly int _offset; // The starting offset when an original instance is sliced.
     private readonly FragmentedPosition _fragmentedPosition; // The starting offset as FragmentedPosition when an original instance is sliced.
+    private readonly DisposeManager _disposeManager;
+
+    private class DisposeManager
+    {
+        private int _objectCount = 1;
+
+        public void Increment()
+        {
+            Interlocked.Increment(ref _objectCount);
+        }
+
+        public bool TryDispose()
+        {
+            if (Interlocked.Decrement(ref _objectCount) == 0)
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
 
     // This property is not a field to decrease the size of the FragmentedMemory<T> structure.
     // Since the values are actually readonly (both the input and the ones in the struct), it never gets allocated.
@@ -40,6 +61,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
         _fragmentCount = memories.Length;
         _offset = 0;
         _fragmentedPosition = FragmentedPosition.Beginning;
+        _disposeManager = new DisposeManager();
 
         ref var memory = ref Ptr.Get(memories);
         ref var memoriesBoundary = ref Unsafe.Add(ref memory, memories.Length);
@@ -65,6 +87,7 @@ public readonly struct FragmentedMemory<T> : IDisposable
         _fragmentCount = arrays.Length;
         _offset = 0;
         _fragmentedPosition = FragmentedPosition.Beginning;
+        _disposeManager = new DisposeManager();
 
         ref T[] array = ref Ptr.Get(arrays);
         ref T[] arraysBoundary = ref Unsafe.Add(ref array, arrays.Length);
@@ -92,7 +115,10 @@ public readonly struct FragmentedMemory<T> : IDisposable
         _fragmentCount = fragmentedMemory._fragmentCount;
         _offset = offset;
         _fragmentedPosition = FragmentedPosition.NotFound;
+        _disposeManager = fragmentedMemory._disposeManager;
         Length = length;
+
+        _disposeManager.Increment();
     }
 
     /// <summary>
@@ -107,11 +133,19 @@ public readonly struct FragmentedMemory<T> : IDisposable
         _fragmentCount = fragmentedMemory._fragmentCount;
         _offset = -1;
         _fragmentedPosition = fragmentedPosition;
+        _disposeManager = fragmentedMemory._disposeManager;
         Length = length;
+
+        _disposeManager.Increment();
     }
 
     public void Dispose()
     {
+        if (!_disposeManager.TryDispose())
+        {
+            return;
+        }
+
         ArrayPool<MemoryFragment<T>>.Shared.Return(_fragments);
     }
 
@@ -126,7 +160,15 @@ public readonly struct FragmentedMemory<T> : IDisposable
     /// <param name="length">The desired length of the slice.</param>
     /// <returns>A <see cref="FragmentedMemory{T}"/> of <paramref name="length"/> elements starting at <paramref name="offset"/>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public FragmentedMemory<T> Slice(int offset, int length) => new(in this, _offset + offset, length);
+    public FragmentedMemory<T> Slice(int offset, int length)
+    {
+        if ((uint)length <= (uint)Length) // Favor this branch (no jmp) when BPU has not enough information.
+        {
+            return new(in this, _offset + offset, length);
+        }
+
+        throw new InvalidOperationException($"The provided length '{length} cannot be greater than the current one '{Length}'.");
+    }
 
     /// <summary>
     /// Forms a slice of the specified length out of the current <see cref="FragmentedMemory{T}"/> starting at the specified <see cref="FragmentedPosition"/>.
@@ -137,14 +179,25 @@ public readonly struct FragmentedMemory<T> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public FragmentedMemory<T> Slice(FragmentedPosition fragmentedPosition, int length)
     {
+        if ((uint)length > (uint)Length)
+        {
+            goto LengthIsTooBig; // Unfavor this branch (forward jmp) when BPU has not enough information.
+        }
+
         // Disallow this type of slicing when the instance is already sliced. The instance is sliced when the _fragmentedPosition is not Beginning.
         // When sliced by offset: NotFound.
         // When sliced by FragmentedPosition: any arbitrary value. It's not a problem if it's sliced by FragmentedPosition from the beginning, because that's the default value.
-        if (_fragmentedPosition == FragmentedPosition.Beginning) // Favor this branch when BPU has not enough information.
+        if (_fragmentedPosition != FragmentedPosition.Beginning)
         {
-            return new(in this, fragmentedPosition, length);
+            goto CannotSliceASlice;  // Unfavor this branch (forward jmp) when BPU has not enough information.
         }
 
+        return new(in this, fragmentedPosition, length);
+
+    LengthIsTooBig:
+        throw new InvalidOperationException($"The provided length '{length} must be greater than 0 and cannot be greater than the current one '{Length}'.");
+
+    CannotSliceASlice:
         throw new InvalidOperationException("FragmentedPosition can only be used to form slices when the FragmentedMemory is unsliced or has previously been sliced by FragmentedPosition too.");
     }
 

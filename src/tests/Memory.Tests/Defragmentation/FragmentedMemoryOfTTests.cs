@@ -1,4 +1,5 @@
 ﻿using Ofella.Utilities.Memory.Defragmentation;
+using System.Diagnostics;
 using Xunit;
 
 namespace Ofella.Utilities.Memory.Tests.Defragmentation;
@@ -56,6 +57,12 @@ public class FragmentedMemoryOfTTests : BaseTest
     {
         byte[] buffer = new byte[readSize];
         using var stream = new MemoryStream(buffer);
+
+        if (readSize > fragmentedMemory.Length)
+        {
+            Assert.Throws<InvalidOperationException>(() => fragmentedMemory.Slice(0, readSize));
+            return;
+        }
 
         await fragmentedMemory.Slice(0, readSize).CopyToAsync(stream);
 
@@ -160,12 +167,18 @@ public class FragmentedMemoryOfTTests : BaseTest
     [Fact]
     protected void DoNotAllow_SliceByFragmentedPosition_WhenAlreadySliced()
     {
-        byte[] buffer = new byte[100];
-        using var stream = new MemoryStream(buffer);
-
         var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
         var slicedFragmentedMemory = fragmentedMemory.Slice(new FragmentedPosition(0, 2), 1);
 
         Assert.Throws<InvalidOperationException>(() => slicedFragmentedMemory.Slice(FragmentedPosition.Beginning, 2));
     }
+
+    //[Fact]
+    //protected void DoNotAllow_SliceMoreThanAvailable()
+    //{
+    //    var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
+    //    var slicedFragmentedMemory = fragmentedMemory.Slice(new FragmentedPosition(0, 2), 1);
+
+    //    Assert.Throws<InvalidOperationException>(() => slicedFragmentedMemory.Slice(FragmentedPosition.Beginning, 2));
+    //}
 }
