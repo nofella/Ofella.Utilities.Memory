@@ -7,10 +7,11 @@ namespace Ofella.Utilities.Memory.Tests.Defragmentation;
 public class FragmentedMemoryOfTTests : BaseTest
 {
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), false, false, DisableDiscoveryEnumeration = true)]
-    protected void CopyToArray<T>(FragmentedMemory<T> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, null, false, DisableDiscoveryEnumeration = true)]
+    protected void CopyToArray<TArray, TElement>(TestCaseInput<TArray, TElement> input)
     {
-        T[] buffer = new T[100_000];
+        using var fragmentedMemory = CreateFragmentedMemory(input);
+        TElement[] buffer = new TElement[100_000];
 
         fragmentedMemory.CopyTo(buffer);
 
@@ -18,10 +19,11 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), false, false, DisableDiscoveryEnumeration = true)]
-    protected void CopyToMemory<T>(FragmentedMemory<T> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, null, false, DisableDiscoveryEnumeration = true)]
+    protected void CopyToMemory<TArray, TElement>(TestCaseInput<TArray, TElement> input)
     {
-        T[] buffer = new T[100_000];
+        using var fragmentedMemory = CreateFragmentedMemory(input);
+        TElement[] buffer = new TElement[100_000];
 
         fragmentedMemory.CopyTo(buffer.AsMemory());
 
@@ -29,10 +31,11 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), false, false, DisableDiscoveryEnumeration = true)]
-    protected void CopyToSpan<T>(FragmentedMemory<T> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, null, false, DisableDiscoveryEnumeration = true)]
+    protected void CopyToSpan<TArray, TElement>(TestCaseInput<TArray, TElement> input)
     {
-        T[] buffer = new T[100_000];
+        using var fragmentedMemory = CreateFragmentedMemory(input);
+        TElement[] buffer = new TElement[100_000];
 
         fragmentedMemory.CopyTo(buffer.AsSpan());
 
@@ -40,9 +43,10 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
-    protected async Task CopyToStreamAsync(FragmentedMemory<byte> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, typeof(byte), false, DisableDiscoveryEnumeration = true)]
+    protected async Task CopyToStreamAsync<TArray>(TestCaseInput<TArray, byte> input)
     {
+        using var fragmentedMemory = CreateFragmentedMemory(input);
         byte[] buffer = new byte[100_000];
         using var stream = new MemoryStream(buffer);
 
@@ -52,9 +56,10 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), true, true, DisableDiscoveryEnumeration = true)]
-    protected async Task CopyToStreamAsync_WithReadSizes(FragmentedMemory<byte> fragmentedMemory, int readSize)
+    [MemberData(nameof(FilterArrayCases), null, typeof(byte), true, DisableDiscoveryEnumeration = true)]
+    protected async Task CopyToStreamAsync_WithReadSizes<TArray>(TestCaseInput<TArray, byte> input, int readSize)
     {
+        using var fragmentedMemory = CreateFragmentedMemory(input);
         byte[] buffer = new byte[readSize];
         using var stream = new MemoryStream(buffer);
 
@@ -70,14 +75,15 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), false, false, DisableDiscoveryEnumeration = true)]
-    protected void CopyToArray_AtEndOfFragmentedMemory<T>(FragmentedMemory<T> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, null, false, DisableDiscoveryEnumeration = true)]
+    protected void CopyToArray_AtEndOfFragmentedMemory<TArray, TElement>(TestCaseInput<TArray, TElement> input)
     {
-        T[] buffer = new T[100_000];
+        using var fragmentedMemory = CreateFragmentedMemory(input);
+        TElement[] buffer = new TElement[100_000];
 
         var endOfStreamPosition = fragmentedMemory.CopyTo(buffer);
 
-        var fragmentedMemorySliceAtEnd = fragmentedMemory.Slice(endOfStreamPosition, 10);
+        using var fragmentedMemorySliceAtEnd = fragmentedMemory.Slice(endOfStreamPosition, 10);
 
         var fragmentedPositionAfterCopy = fragmentedMemorySliceAtEnd.CopyTo(buffer);
 
@@ -85,14 +91,15 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), false, false, DisableDiscoveryEnumeration = true)]
-    protected void CopyToArray_AfterEndOfFragmentedMemory<T>(FragmentedMemory<T> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, null, false, DisableDiscoveryEnumeration = true)]
+    protected void CopyToArray_AfterEndOfFragmentedMemory<TArray, TElement>(TestCaseInput<TArray, TElement> input)
     {
-        T[] buffer = new T[100_000];
+        using var fragmentedMemory = CreateFragmentedMemory(input);
+        TElement[] buffer = new TElement[100_000];
 
         var endOfStreamPosition = fragmentedMemory.CopyTo(buffer);
 
-        var fragmentedMemorySliceAfterEnd = fragmentedMemory.Slice(fragmentedMemory.Length + 10, 10);
+        using var fragmentedMemorySliceAfterEnd = fragmentedMemory.Slice(fragmentedMemory.Length + 10, 10);
 
         var fragmentedPositionAfterCopy = fragmentedMemorySliceAfterEnd.CopyTo(buffer);
 
@@ -100,15 +107,16 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
-    protected async Task CopyToStreamAsync_AtEndOfFragmentedMemory(FragmentedMemory<byte> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, typeof(byte), false, DisableDiscoveryEnumeration = true)]
+    protected async Task CopyToStreamAsync_AtEndOfFragmentedMemory<TArray>(TestCaseInput<TArray, byte> input)
     {
+        using var fragmentedMemory = CreateFragmentedMemory(input);
         byte[] buffer = new byte[100_000];
         using var stream = new MemoryStream(buffer);
 
         var endOfStreamPosition = await fragmentedMemory.CopyToAsync(stream);
 
-        var fragmentedMemorySliceAtEnd = fragmentedMemory.Slice(endOfStreamPosition, 10);
+        using var fragmentedMemorySliceAtEnd = fragmentedMemory.Slice(endOfStreamPosition, 10);
 
         var fragmentedPositionAfterCopy = await fragmentedMemorySliceAtEnd.CopyToAsync(stream);
 
@@ -116,15 +124,16 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Theory]
-    [MemberData(nameof(FragmentedMemoriesWithReadSizes), true, false, DisableDiscoveryEnumeration = true)]
-    protected async Task CopyToStreamAsync_AfterEndOfFragmentedMemory(FragmentedMemory<byte> fragmentedMemory)
+    [MemberData(nameof(FilterArrayCases), null, typeof(byte), false, DisableDiscoveryEnumeration = true)]
+    protected async Task CopyToStreamAsync_AfterEndOfFragmentedMemory<TArray>(TestCaseInput<TArray, byte> input)
     {
+        using var fragmentedMemory = CreateFragmentedMemory(input);
         byte[] buffer = new byte[100_000];
         using var stream = new MemoryStream(buffer);
 
         var endOfStreamPosition = await fragmentedMemory.CopyToAsync(stream);
 
-        var fragmentedMemorySliceAfterEnd = fragmentedMemory.Slice(fragmentedMemory.Length + 10, 10);
+        using var fragmentedMemorySliceAfterEnd = fragmentedMemory.Slice(fragmentedMemory.Length + 10, 10);
 
         var fragmentedPositionAfterCopy = await fragmentedMemorySliceAfterEnd.CopyToAsync(stream);
 
@@ -137,7 +146,7 @@ public class FragmentedMemoryOfTTests : BaseTest
         byte[] buffer = new byte[100];
         using var stream = new MemoryStream(buffer);
 
-        var fragmentedMemory = new FragmentedMemory<short>(new short[][] { new short[] { 1, 2, 3 } });
+        using var fragmentedMemory = new FragmentedMemory<short>(new short[][] { new short[] { 1, 2, 3 } });
 
         await Assert.ThrowsAsync<NotSupportedException>(() => fragmentedMemory.CopyToAsync(stream).AsTask());
     }
@@ -148,7 +157,7 @@ public class FragmentedMemoryOfTTests : BaseTest
         byte[] buffer = new byte[100];
         using var stream = new MemoryStream(buffer);
 
-        var fragmentedMemory = new FragmentedMemory<int>(new int[][] { new int[] { 1, 2, 3 } });
+        using var fragmentedMemory = new FragmentedMemory<int>(new int[][] { new int[] { 1, 2, 3 } });
 
         await Assert.ThrowsAsync<NotSupportedException>(() => fragmentedMemory.CopyToAsync(stream).AsTask());
     }
@@ -159,7 +168,7 @@ public class FragmentedMemoryOfTTests : BaseTest
         byte[] buffer = new byte[100];
         using var stream = new MemoryStream(buffer);
 
-        var fragmentedMemory = new FragmentedMemory<long>(new long[][] { new long[] { 1, 2, 3 } });
+        using var fragmentedMemory = new FragmentedMemory<long>(new long[][] { new long[] { 1, 2, 3 } });
 
         await Assert.ThrowsAsync<NotSupportedException>(() => fragmentedMemory.CopyToAsync(stream).AsTask());
     }
@@ -167,18 +176,17 @@ public class FragmentedMemoryOfTTests : BaseTest
     [Fact]
     protected void DoNotAllow_SliceByFragmentedPosition_WhenAlreadySliced()
     {
-        var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
-        var slicedFragmentedMemory = fragmentedMemory.Slice(new FragmentedPosition(0, 2), 1);
+        using var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 } });
+        var slicedFragmentedMemory = fragmentedMemory.Slice(new FragmentedPosition(0, 2), 5);
 
         Assert.Throws<InvalidOperationException>(() => slicedFragmentedMemory.Slice(FragmentedPosition.Beginning, 2));
     }
 
-    //[Fact]
-    //protected void DoNotAllow_SliceMoreThanAvailable()
-    //{
-    //    var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
-    //    var slicedFragmentedMemory = fragmentedMemory.Slice(new FragmentedPosition(0, 2), 1);
+    [Fact]
+    protected void DoNotAllow_SliceMoreThanAvailable()
+    {
+        using var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
 
-    //    Assert.Throws<InvalidOperationException>(() => slicedFragmentedMemory.Slice(FragmentedPosition.Beginning, 2));
-    //}
+        Assert.Throws<InvalidOperationException>(() => fragmentedMemory.Slice(new FragmentedPosition(0, 2), 30));
+    }
 }

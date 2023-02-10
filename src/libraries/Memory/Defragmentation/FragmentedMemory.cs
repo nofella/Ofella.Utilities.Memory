@@ -144,13 +144,14 @@ public static class FragmentedMemory
     {
         var fragmentedMemory = new FragmentedMemory<T>(sources);
         var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
+        var copyJob = CopyAsyncTask<T>; // Needed for correct branch coverage calculation.
 
         // Unroll 2 copy operations instead of trying to find the max. degree of parallelism based on the number of CPU cores available.
         // It seems that on most systems not the CPU, but the available bandwidth of memory is the real bottleneck,
         // thus it's quite improbable that more than 2 copy operations running in parallel can help us.
         return Task.WhenAll(
-            Task.Factory.StartNew(CopyAsyncTask<T>, new TaskState<T>(fragmentedMemory.Slice(0, halfSize), destination)), // Slice is faster when length is known due to the way FragmentedMemory<T> is implemented.
-            Task.Factory.StartNew(CopyAsyncTask<T>, new TaskState<T>(fragmentedMemory[halfSize..], destination[halfSize..])) // When length is not available there's no perf. difference between Slice and this[], but latter is easier to write.
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory.Slice(0, halfSize), destination)), // Slice is faster when length is known due to the way FragmentedMemory<T> is implemented.
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory[halfSize..], destination[halfSize..])) // When length is not available there's no perf. difference between Slice and this[], but latter is easier to write.
             );
     }
 
@@ -166,13 +167,14 @@ public static class FragmentedMemory
     {
         var fragmentedMemory = new FragmentedMemory<T>(sources);
         var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
+        var copyJob = CopyAsyncTask<T>; // Needed for correct branch coverage calculation.
 
         // Unroll 2 copy operations instead of trying to find the max. degree of parallelism based on the number of CPU cores available.
         // It seems that on most systems not the CPU, but the available bandwidth of memory is the real bottleneck,
         // thus it's quite improbable that more than 2 copy operations running in parallel can help us.
         return Task.WhenAll(
-            Task.Factory.StartNew(CopyAsyncTask<T>, new TaskState<T>(fragmentedMemory.Slice(0, halfSize), destination)), // Slice is faster when length is available due to the way FragmentedMemory<T> is implemented.
-            Task.Factory.StartNew(CopyAsyncTask<T>, new TaskState<T>(fragmentedMemory[halfSize..], destination[halfSize..])) // When length is not available there's no perf. difference between Slice and this[], but latter is easier to write.
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory.Slice(0, halfSize), destination)), // Slice is faster when length is available due to the way FragmentedMemory<T> is implemented.
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory[halfSize..], destination[halfSize..])) // When length is not available there's no perf. difference between Slice and this[], but latter is easier to write.
             );
     }
 
