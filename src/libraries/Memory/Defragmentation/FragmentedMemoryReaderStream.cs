@@ -8,7 +8,7 @@ public class FragmentedMemoryReaderStream : Stream
     #region Fields & Properties
 
     private readonly FragmentedMemory<byte> _fragmentedMemory; // The FragmentedMemory<byte> to provide a generic view of.
-    private FragmentedPosition _fragmentedPosition; // The position inside _fragmentedMemory.
+    private FragmentedMemoryEnumerator _enumerator; // The position inside _fragmentedMemory.
     private long _position; // The position inside this stream.
 
     #endregion
@@ -22,7 +22,7 @@ public class FragmentedMemoryReaderStream : Stream
     public FragmentedMemoryReaderStream(in FragmentedMemory<byte> fragmentedMemory)
     {
         _fragmentedMemory = fragmentedMemory;
-        _fragmentedPosition = FragmentedPosition.Beginning;
+        _enumerator = FragmentedMemoryEnumerator.Beginning;
         _position = 0;
     }
 
@@ -44,7 +44,7 @@ public class FragmentedMemoryReaderStream : Stream
         set
         {
             _position = value;
-            _fragmentedPosition = FragmentedPosition.NotFound; // Setting position manually resets the FragmentedPosition.
+            _enumerator = FragmentedMemoryEnumerator.None; // Setting position manually resets the FragmentedPosition.
         }
     }
 
@@ -78,15 +78,14 @@ public class FragmentedMemoryReaderStream : Stream
             bytesToCopy = (int)(Length - Position);
         }
 
-        // Read from the fragmented memory by forming a slice of _count_ length out of the _fragmented memory starting at the stream's position.
-        var fragmentedMemorySlice = _fragmentedMemory.Slice(_fragmentedPosition, bytesToCopy);
+        var fragmentedMemoryToCopy = _fragmentedMemory.Slice((int)Position, bytesToCopy);
 
-        var fragmentedPosition = fragmentedMemorySlice.CopyTo(buffer.AsMemory()[offset..]);
+        var enumerator = fragmentedMemoryToCopy.CopyTo(buffer.AsMemory()[offset..], _enumerator);
 
-        Position += fragmentedMemorySlice.Length; // Update position first, because it resets the _fragmentedPosition.
-        _fragmentedPosition = fragmentedPosition;
+        Position += fragmentedMemoryToCopy.Length; // Update position first, because it resets the _fragmentedPosition.
+        _enumerator = enumerator;
 
-        return fragmentedMemorySlice.Length;
+        return fragmentedMemoryToCopy.Length;
 
     EndOfStream:
         return 0;
@@ -99,12 +98,12 @@ public class FragmentedMemoryReaderStream : Stream
             goto EndOfStream; // Unfavor this branch when BPU has not enough information.
         }
 
-        var fragmentedMemorySlice = _fragmentedMemory.Slice(_fragmentedPosition, 1);
+        var fragmentedMemoryToCopy = _fragmentedMemory.Slice((int)Position, 1);
         Span<byte> buffer = stackalloc byte[1];
 
-        var fragmentedPosition = fragmentedMemorySlice.CopyTo(buffer);
+        var enumerator = fragmentedMemoryToCopy.CopyTo(buffer, _enumerator);
         ++Position;
-        _fragmentedPosition = fragmentedPosition;
+        _enumerator = enumerator;
 
         return buffer[0];
 

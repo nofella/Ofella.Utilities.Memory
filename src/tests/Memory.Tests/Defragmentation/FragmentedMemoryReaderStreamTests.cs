@@ -22,6 +22,49 @@ public class FragmentedMemoryReaderStreamTests : BaseTest
     }
 
     [Theory]
+    [MemberData(nameof(FilterArrayCases), null, typeof(byte), true, DisableDiscoveryEnumeration = true)]
+    protected void Read_WithAbsoluteReposition<TArray>(TestCaseInput<TArray, byte> input, int readSize)
+    {
+        using var fragmentedMemory = CreateFragmentedMemory(input);
+        var stream = fragmentedMemory.AsStream();
+
+        var buffer = new byte[100_000];
+        int offset = 0;
+        int bytesRead;
+
+        while ((bytesRead = stream.Read(buffer, offset, readSize)) > 0)
+        {
+            offset += bytesRead;
+            stream.Seek(offset, SeekOrigin.Begin); // Forced reposition.
+        }
+
+        AssertEqualBuffers(buffer);
+    }
+
+    [Theory]
+    [MemberData(nameof(FilterArrayCases), null, typeof(byte), true, DisableDiscoveryEnumeration = true)]
+    protected void Read_WithRelativeReposition<TArray>(TestCaseInput<TArray, byte> input, int readSize)
+    {
+        using var fragmentedMemory = CreateFragmentedMemory(input);
+        var stream = fragmentedMemory.AsStream();
+
+        var buffer = new byte[100_000];
+        int offset = 0;
+        int bytesRead;
+
+        while ((bytesRead = stream.Read(buffer, offset, readSize)) > 0)
+        {
+            offset += bytesRead;
+            
+            // Forced reposition using Current as SeekOrigin.
+            stream.Seek(bytesRead * -1, SeekOrigin.Current);
+            stream.Seek(bytesRead, SeekOrigin.Current);
+        }
+
+        AssertEqualBuffers(buffer);
+    }
+
+    [Theory]
     [MemberData(nameof(FilterArrayCases), null, typeof(byte), false, DisableDiscoveryEnumeration = true)]
     protected void ReadByte<TArray>(TestCaseInput<TArray, byte> input)
     {

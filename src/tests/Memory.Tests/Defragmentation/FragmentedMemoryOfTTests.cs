@@ -6,6 +6,36 @@ namespace Ofella.Utilities.Memory.Tests.Defragmentation;
 
 public class FragmentedMemoryOfTTests : BaseTest
 {
+    [Fact]
+    protected void DoNotAllow_CreateFragmentedMemory_TooLongArrays()
+    {
+        var array = new byte[100_000_000];
+        var fragments = new byte[30][];
+
+        for (var i = 0; i < fragments.Length; ++i)
+        {
+            fragments[i] = array;
+        }
+
+        var ex = Assert.Throws<ArgumentException>(() => new FragmentedMemory<byte>(fragments));
+        Assert.Contains("The combined length of the provided arrays exceeds the maximum allowed length", ex.Message);
+    }
+
+    [Fact]
+    protected void DoNotAllow_CreateFragmentedMemory_TooLongMemories()
+    {
+        var array = new byte[100_000_000];
+        var fragments = new Memory<byte>[30];
+
+        for (var i = 0; i < fragments.Length; ++i)
+        {
+            fragments[i] = array;
+        }
+
+        var ex = Assert.Throws<ArgumentException>(() => new FragmentedMemory<byte>(fragments));
+        Assert.Contains("The combined length of the provided memories exceeds the maximum allowed length", ex.Message);
+    }
+
     [Theory]
     [MemberData(nameof(FilterArrayCases), null, null, false, DisableDiscoveryEnumeration = true)]
     protected void CopyToArray<TArray, TElement>(TestCaseInput<TArray, TElement> input)
@@ -65,7 +95,9 @@ public class FragmentedMemoryOfTTests : BaseTest
 
         if (readSize > fragmentedMemory.Length)
         {
-            Assert.Throws<InvalidOperationException>(() => fragmentedMemory.Slice(0, readSize));
+            var ex = Assert.Throws<ArgumentException>(() => fragmentedMemory.Slice(0, readSize));
+            Assert.Contains("The boundary", ex.Message);
+            Assert.Contains("must not be greater than the current length", ex.Message);
             return;
         }
 
@@ -83,25 +115,7 @@ public class FragmentedMemoryOfTTests : BaseTest
 
         var endOfStreamPosition = fragmentedMemory.CopyTo(buffer);
 
-        using var fragmentedMemorySliceAtEnd = fragmentedMemory.Slice(endOfStreamPosition, 10);
-
-        var fragmentedPositionAfterCopy = fragmentedMemorySliceAtEnd.CopyTo(buffer);
-
-        Assert.Equal(endOfStreamPosition, fragmentedPositionAfterCopy);
-    }
-
-    [Theory]
-    [MemberData(nameof(FilterArrayCases), null, null, false, DisableDiscoveryEnumeration = true)]
-    protected void CopyToArray_AfterEndOfFragmentedMemory<TArray, TElement>(TestCaseInput<TArray, TElement> input)
-    {
-        using var fragmentedMemory = CreateFragmentedMemory(input);
-        TElement[] buffer = new TElement[100_000];
-
-        var endOfStreamPosition = fragmentedMemory.CopyTo(buffer);
-
-        using var fragmentedMemorySliceAfterEnd = fragmentedMemory.Slice(fragmentedMemory.Length + 10, 10);
-
-        var fragmentedPositionAfterCopy = fragmentedMemorySliceAfterEnd.CopyTo(buffer);
+        var fragmentedPositionAfterCopy = fragmentedMemory.CopyTo(buffer, endOfStreamPosition);
 
         Assert.Equal(endOfStreamPosition, fragmentedPositionAfterCopy);
     }
@@ -114,30 +128,11 @@ public class FragmentedMemoryOfTTests : BaseTest
         byte[] buffer = new byte[100_000];
         using var stream = new MemoryStream(buffer);
 
-        var endOfStreamPosition = await fragmentedMemory.CopyToAsync(stream);
+        var finishedEnumerator = await fragmentedMemory.CopyToAsync(stream);
 
-        using var fragmentedMemorySliceAtEnd = fragmentedMemory.Slice(endOfStreamPosition, 10);
+        var fragmentedPositionAfterCopy = await fragmentedMemory.CopyToAsync(stream, finishedEnumerator);
 
-        var fragmentedPositionAfterCopy = await fragmentedMemorySliceAtEnd.CopyToAsync(stream);
-
-        Assert.Equal(endOfStreamPosition, fragmentedPositionAfterCopy);
-    }
-
-    [Theory]
-    [MemberData(nameof(FilterArrayCases), null, typeof(byte), false, DisableDiscoveryEnumeration = true)]
-    protected async Task CopyToStreamAsync_AfterEndOfFragmentedMemory<TArray>(TestCaseInput<TArray, byte> input)
-    {
-        using var fragmentedMemory = CreateFragmentedMemory(input);
-        byte[] buffer = new byte[100_000];
-        using var stream = new MemoryStream(buffer);
-
-        var endOfStreamPosition = await fragmentedMemory.CopyToAsync(stream);
-
-        using var fragmentedMemorySliceAfterEnd = fragmentedMemory.Slice(fragmentedMemory.Length + 10, 10);
-
-        var fragmentedPositionAfterCopy = await fragmentedMemorySliceAfterEnd.CopyToAsync(stream);
-
-        Assert.Equal(endOfStreamPosition, fragmentedPositionAfterCopy);
+        Assert.Equal(finishedEnumerator, fragmentedPositionAfterCopy);
     }
 
     [Fact]
@@ -174,19 +169,32 @@ public class FragmentedMemoryOfTTests : BaseTest
     }
 
     [Fact]
-    protected void DoNotAllow_SliceByFragmentedPosition_WhenAlreadySliced()
-    {
-        using var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 } });
-        var slicedFragmentedMemory = fragmentedMemory.Slice(new FragmentedPosition(0, 2), 5);
-
-        Assert.Throws<InvalidOperationException>(() => slicedFragmentedMemory.Slice(FragmentedPosition.Beginning, 2));
-    }
-
-    [Fact]
-    protected void DoNotAllow_SliceMoreThanAvailable()
+    protected void DoNotAllow_Slice_MoreThanAvailable()
     {
         using var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
 
-        Assert.Throws<InvalidOperationException>(() => fragmentedMemory.Slice(new FragmentedPosition(0, 2), 30));
+        var ex = Assert.Throws<ArgumentException>(() => fragmentedMemory[..100]);
+        Assert.Contains("The boundary", ex.Message);
+        Assert.Contains("must not be greater than the current length", ex.Message);
+    }
+
+    [Fact]
+    protected void DoNotAllow_Slice_NegativeOffset()
+    {
+        using var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
+
+        var ex = Assert.Throws<ArgumentException>(() => fragmentedMemory.Slice(-100, 1));
+        Assert.Contains("The value", ex.Message);
+        Assert.Contains("must not be less than 0", ex.Message);
+    }
+
+    [Fact]
+    protected void DoNotAllow_Slice_NegativeLength()
+    {
+        using var fragmentedMemory = new FragmentedMemory<byte>(new byte[][] { new byte[] { 1, 2, 3 } });
+
+        var ex = Assert.Throws<ArgumentException>(() => fragmentedMemory.Slice(1, -100));
+        Assert.Contains("The value", ex.Message);
+        Assert.Contains("must be greater than 0", ex.Message);
     }
 }
