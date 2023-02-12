@@ -11,6 +11,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ofella.Utilities.Memory", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ofella.Utilities.Memory.Benchmarks", "benchmarks\Memory.Benchmarks\Ofella.Utilities.Memory.Benchmarks.csproj", "{C13C4F43-082D-451D-9449-4524250699F3}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C88EBD8A-AF0F-4A97-9966-B72B1877CC46}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Ofella.Utilities.Memory.Tests", "tests\Memory.Tests\Ofella.Utilities.Memory.Tests.csproj", "{C738873A-F0BB-4664-B378-66E3C0F36D74}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -25,6 +29,9 @@ Global
 		{C13C4F43-082D-451D-9449-4524250699F3}.Debug|x64.Build.0 = Debug|x64
 		{C13C4F43-082D-451D-9449-4524250699F3}.Release|x64.ActiveCfg = Release|x64
 		{C13C4F43-082D-451D-9449-4524250699F3}.Release|x64.Build.0 = Release|x64
+		{C738873A-F0BB-4664-B378-66E3C0F36D74}.Debug|x64.ActiveCfg = Debug|x64
+		{C738873A-F0BB-4664-B378-66E3C0F36D74}.Debug|x64.Build.0 = Debug|x64
+		{C738873A-F0BB-4664-B378-66E3C0F36D74}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -32,6 +39,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{447720A5-8DF6-4146-AED0-DCAE423B37A8} = {864A91B6-2EB5-4B9C-958F-B3E7740E691B}
 		{C13C4F43-082D-451D-9449-4524250699F3} = {89E4F795-4789-4CBC-A5CB-F3AF7692ABC1}
+		{C738873A-F0BB-4664-B378-66E3C0F36D74} = {C88EBD8A-AF0F-4A97-9966-B72B1877CC46}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2D14B9FA-4485-465D-AD7E-D779F4446359}

@@ -1,192 +1,193 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using Ofella.Utilities.Memory.ManagedPointers;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Ofella.Utilities.Memory.Defragmentation;
 
+/// <summary>
+/// Provides methods for simple defragmentation of memory without having to create a <see cref="FragmentedMemory{T}"/>.
+/// </summary>
 public static class FragmentedMemory
 {
-    private readonly record struct Test(int Index, int Offset);
-
     #region Defragmentation of Memory<T>[]
 
-    public static void Copy<T>(Memory<T>[] source, T[] target)
+    /// <summary>
+    /// Defragments a region of memory represented by multiple <see cref="Memory{T}"/> instances by copying them into a contiguous region of memory represented by a <see cref="Span{T}"/> instance in the provided order.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in <paramref name="sources"/> and <paramref name="destination"/>.</typeparam>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">A contiguous region of memory to defragment into.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
+    public static void Copy<T>(Memory<T>[] sources, Span<T> destination)
     {
-        ref var sourcePtr = ref MemoryMarshal.GetArrayDataReference(source);
-        ref var sourceEnd = ref Unsafe.Add(ref sourcePtr, source.Length);
-        ref var targetPtr = ref MemoryMarshal.GetArrayDataReference(target);
+        ref var source = ref Ptr.Get(sources);
+        ref T currentDestination = ref Ptr.Get(destination);
+        ref var boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
         for (;
-            Unsafe.IsAddressLessThan(ref sourcePtr, ref sourceEnd);
-            sourcePtr = ref Unsafe.Add(ref sourcePtr, 1))
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
+            currentDestination = ref Unsafe.Add(ref currentDestination, source.Length), source = ref Unsafe.Add(ref source, 1))
         {
-            sourcePtr.Span.CopyTo(MemoryMarshal.CreateSpan(ref targetPtr, sourcePtr.Length));
-            targetPtr = ref Unsafe.Add(ref targetPtr, sourcePtr.Length);
+            Ptr.UnalignedCopy(ref currentDestination, ref Ptr.Get(source.Span), source.Length);
         }
     }
 
-    public static void Copy<T>(Memory<T>[] source, Memory<T> target)
+    /// <summary>
+    /// Defragments a region of memory represented by multiple <see cref="Memory{T}"/> instances by writing them into a <see cref="Stream"/> instance in the provided order.
+    /// </summary>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">The stream to defragment into.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
+    public static void Copy(Memory<byte>[] sources, Stream destination)
     {
-        int offset = 0;
-        ref var current = ref MemoryMarshal.GetArrayDataReference(source);
-        ref var lastItem = ref Unsafe.Add(ref current, source.Length);
+        ref var source = ref Ptr.Get(sources);
+        ref var boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
+        // Fastest way to loop in NET7
         for (;
-            Unsafe.IsAddressLessThan(ref current, ref lastItem);
-            current = ref Unsafe.Add(ref current, 1))
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
+            source = ref Unsafe.Add(ref source, 1))
         {
-            current.CopyTo(target[offset..]);
-            offset += current.Length;
+            destination.Write(source.Span);
         }
     }
 
-    public static void Copy(Memory<byte>[] source, Stream target)
+    /// <summary>
+    /// Defragments a region of memory represented by multiple <see cref="Memory{T}"/> instances by asynchronously writing them into a <see cref="Stream"/> instance in the provided order.
+    /// </summary>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">The stream to defragment into.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous copy operation.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
+    public static async ValueTask CopyAsync(Memory<byte>[] sources, Stream destination, CancellationToken cancellationToken = default)
     {
-        for (var i = 0; i < source.Length; ++i)
+        foreach (var source in sources)
         {
-            target.Write(source[i].Span);
-        }
-    }
-
-    public static async ValueTask CopyAsync(Memory<byte>[] source, Stream target, CancellationToken cancellationToken = default)
-    {
-        for (var i = 0; i < source.Length; ++i)
-        {
-            await target.WriteAsync(source[i], cancellationToken);
+            await destination.WriteAsync(source, cancellationToken);
         }
     }
 
     #endregion
 
-    #region Defragmentation of object[] where object is T[]
+    #region Defragmentation of T[][]
 
-    public static void Copy(byte[][] source, byte[] target)
+    /// <summary>
+    /// Defragments a region of memory represented by <see cref="T:byte[]"/> instances by copying them into a contiguous region of memory represented by a <see cref="Span{T}"/> instance in the provided order.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in <paramref name="sources"/> and <paramref name="destination"/>.</typeparam>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">A contiguous region of memory to defragment into.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
+    public static void Copy<T>(T[][] sources, Span<T> destination)
     {
-        ref byte[] pSources = ref MemoryMarshal.GetArrayDataReference(source);
-        ref byte[] pSourcesEnd = ref Unsafe.Add(ref pSources, source.Length);
-        ref byte pTarget = ref MemoryMarshal.GetArrayDataReference(target);
+        // Types are specified explicitly, because the implicitly determined ones are wrong (T[]? and T?)
+        ref T[] source = ref Ptr.Get(sources);
+        ref T currentDestination = ref Ptr.Get(destination);
+        ref T[] boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
+        // Fastest way to loop in NET7
         for (;
-            Unsafe.IsAddressLessThan(ref pSources, ref pSourcesEnd);
-            pSources = ref Unsafe.Add(ref pSources, 1))
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
+            currentDestination = ref Unsafe.Add(ref currentDestination, source.Length), source = ref Unsafe.Add(ref source, 1))
         {
-            ref var pSource = ref MemoryMarshal.GetArrayDataReference(pSources);
-            Unsafe.CopyBlock(ref pTarget, ref pSource, (uint)pSources.Length);
-            pTarget = Unsafe.Add(ref pTarget, pSources.Length);
+            Ptr.UnalignedCopy(ref currentDestination, ref Ptr.Get(source), source.Length);
         }
     }
 
-    public static void Copy<T>(T[][] source, T[] target)
+    /// <summary>
+    /// Defragments a region of memory represented by <see cref="T:byte[]"/> instances by writing them into a <see cref="Stream"/> instance in the provided order.
+    /// </summary>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">The stream to defragment into.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
+    public static void Copy(byte[][] sources, Stream destination)
     {
-        ref T[] pSources = ref MemoryMarshal.GetArrayDataReference(source);
-        ref T[] pSourcesEnd = ref Unsafe.Add(ref pSources, source.Length);
-        ref T pTarget = ref MemoryMarshal.GetArrayDataReference(target);
+        // Types are specified explicitly, because the implicitly determined ones are wrong (byte[])
+        ref byte[] source = ref Ptr.Get(sources);
+        ref byte[] boundary = ref Unsafe.Add(ref source, sources.Length); // For perf: the boundary is the address AFTER the last element, therefore it MUST NEVER be dereferenced.
 
+        // Fastest way to loop in NET7
         for (;
-            Unsafe.IsAddressLessThan(ref pSources, ref pSourcesEnd);
-            pSources = ref Unsafe.Add(ref pSources, 1))
+            Unsafe.IsAddressLessThan(ref source, ref boundary);
+            source = ref Unsafe.Add(ref source, 1))
         {
-            ref var pSource = ref MemoryMarshal.GetArrayDataReference(pSources);
-            //Unsafe.CopyBlock(ref pTarget, ref pSource, (uint)pSources.Length);
-            //todo: memorymarshal can convert array to byte somehow, but only structs
-            pTarget = Unsafe.Add(ref pTarget, pSources.Length);
+            destination.Write(source, 0, source.Length);
         }
     }
 
-    public static void Copy<T>(object[] source, Memory<T> target)
+    /// <summary>
+    /// Defragments a region of memory represented by <see cref="T:byte[]"/> instances by asynchronously writing them into a <see cref="Stream"/> instance in the provided order.
+    /// </summary>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">The stream to defragment into.</param>
+    /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+    /// <returns>A <see cref="ValueTask"/> that represents the asynchronous copy operation.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
+    public static async ValueTask CopyAsync(byte[][] sources, Stream destination, CancellationToken cancellationToken = default)
     {
-        int offset = 0;
-
-        for (var i = 0; i < source.Length; ++i)
+        foreach (var source in sources)
         {
-            var fragment = (T[])source[i];
-            fragment.CopyTo(target[offset..]);
-            offset += fragment.Length;
-        }
-    }
-
-    public static void Copy(object[] source, Stream target)
-    {
-        for (var i = 0; i < source.Length; ++i)
-        {
-            var buffer = (byte[])source[i];
-            target.Write(buffer);
-        }
-    }
-
-    public static async ValueTask CopyAsync(object[] source, Stream target, CancellationToken cancellationToken = default)
-    {
-        for (var i = 0; i < source.Length; ++i)
-        {
-            var buffer = (byte[])source[i];
-            await target.WriteAsync(buffer, cancellationToken);
+            await destination.WriteAsync(source, cancellationToken);
         }
     }
 
     #endregion
 
-    #region Fragmentation to Memory<T>[]
+    #region Parallel Defragmentation
 
-    public static void Copy<T>(Memory<T> source, Memory<T>[] target)
+    /// <summary>
+    /// Asynchronously defragments a region of memory represented by <see cref="Memory{T}"/> instances by copying them in the provided order to a contiguous destination represented by a single <see cref="Memory{T}"/> instance.
+    /// This method operates in a parallel way using 2 concurrent tasks of which the first one copies to the first half of the destination, and the second one copies to the second half of the destination.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in <paramref name="sources"/> and <paramref name="destination"/>.</typeparam>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">A contiguous region of memory to defragment into.</param>
+    /// <returns>A <see cref="Task"/> that represents the asynchronous copy operation.</returns>
+    public static Task CopyParallelAsync<T>(Memory<T>[] sources, Memory<T> destination)
     {
-        int offset = 0;
+        var fragmentedMemory = new FragmentedMemory<T>(sources);
+        var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
+        var copyJob = CopyAsyncTask<T>; // Needed for correct branch coverage calculation.
 
-        for (var i = 0; i < target.Length; ++i)
-        {
-            source[offset..(offset + target[i].Length)].CopyTo(target[i]);
-            offset += target[i].Length;
-        }
+        // Unroll 2 copy operations instead of trying to find the max. degree of parallelism based on the number of CPU cores available.
+        // It seems that on most systems not the CPU, but the available bandwidth of memory is the real bottleneck,
+        // thus it's quite improbable that more than 2 copy operations running in parallel can help us.
+        return Task.WhenAll(
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory.Slice(0, halfSize), destination)), // Slice is faster when length is known due to the way FragmentedMemory<T> is implemented.
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory[halfSize..], destination[halfSize..])) // When length is not available there's no perf. difference between Slice and this[], but latter is easier to write.
+            );
     }
 
-    public static void Copy(Stream source, Memory<byte>[] target)
+    /// <summary>
+    /// Asynchronously defragments a region of memory represented by instances of <see cref="T:T[]"/> by copying them in the provided order to a contiguous destination represented by a single array of <see cref="T"/>.
+    /// This method operates in a parallel way using 2 concurrent tasks of which the first one copies to the first half of the destination, and the second one copies to the second half of the destination.
+    /// </summary>
+    /// <typeparam name="T">The type of the elements in <paramref name="sources"/> and <paramref name="destination"/>.</typeparam>
+    /// <param name="sources">The fragmented memory region.</param>
+    /// <param name="destination">A contiguous region of memory to defragment into.</param>
+    /// <returns>A <see cref="Task"/> that represents the asynchronous copy operation.</returns>
+    public static Task CopyParallelAsync<T>(T[][] sources, Memory<T> destination)
     {
-        for (var i = 0; i < target.Length; ++i)
-        {
-            source.Read(target[i].Span);
-        }
+        var fragmentedMemory = new FragmentedMemory<T>(sources);
+        var halfSize = fragmentedMemory.Length >>> 1; // Forcing an unsigned division by 2, because we know that it can't be negative.
+        var copyJob = CopyAsyncTask<T>; // Needed for correct branch coverage calculation.
+
+        // Unroll 2 copy operations instead of trying to find the max. degree of parallelism based on the number of CPU cores available.
+        // It seems that on most systems not the CPU, but the available bandwidth of memory is the real bottleneck,
+        // thus it's quite improbable that more than 2 copy operations running in parallel can help us.
+        return Task.WhenAll(
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory.Slice(0, halfSize), destination)), // Slice is faster when length is available due to the way FragmentedMemory<T> is implemented.
+            Task.Factory.StartNew(copyJob, new TaskState<T>(fragmentedMemory[halfSize..], destination[halfSize..])) // When length is not available there's no perf. difference between Slice and this[], but latter is easier to write.
+            );
     }
 
-    public static async ValueTask CopyAsync(Stream source, Memory<byte>[] target)
+    private static void CopyAsyncTask<T>(object? taskState)
     {
-        for (var i = 0; i < target.Length; ++i)
-        {
-            await source.ReadAsync(target[i]);
-        }
+        var state = (TaskState<T>)taskState!; // We knew that it can't be null based on the way we use it.
+        state.FragmentedMemory.CopyTo(state.Destination);
     }
 
-    #endregion
-
-    #region Fragmentation to object[] where object is T[]
-
-    public static void Copy<T>(Memory<T> source, object[] target)
-    {
-        int offset = 0;
-
-        for (var i = 0; i < target.Length; ++i)
-        {
-            var fragment = (T[])target[i];
-            source[offset..(offset + fragment.Length)].CopyTo(fragment);
-            offset += fragment.Length;
-        }
-    }
-
-    public static void Copy(Stream source, object[] target)
-    {
-        for (var i = 0; i < target.Length; ++i)
-        {
-            var buffer = (byte[])target[i];
-            source.Read(buffer);
-        }
-    }
-
-    public static async ValueTask CopyAsync(Stream source, object[] target)
-    {
-        for (var i = 0; i < target.Length; ++i)
-        {
-            var buffer = (byte[])target[i];
-            await source.ReadAsync(buffer);
-        }
-    }
+    private readonly record struct TaskState<T>(FragmentedMemory<T> FragmentedMemory, Memory<T> Destination);
 
     #endregion
 }

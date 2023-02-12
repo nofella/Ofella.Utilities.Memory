@@ -1,16 +1,14 @@
-﻿namespace Ofella.Utilities.Memory.Defragmentation;
+﻿using System.Runtime.CompilerServices;
+
+namespace Ofella.Utilities.Memory.Defragmentation;
 
 public static class FragmentedMemoryOfByteExtensions
 {
-    public static void CopyTo(this FragmentedMemory<byte> fragmentedMemory, Stream stream)
-    {
-        fragmentedMemory.CopyTo((memory, destinationOffset) => stream.Write(memory.Span));
-    }
-
-    public static ValueTask CopyToAsync(this FragmentedMemory<byte> fragmentedMemory, Stream stream, CancellationToken cancellationToken = default)
-    {
-        return fragmentedMemory.CopyToAsync((memory, destinationOffset, ct) => stream.WriteAsync(memory, ct), cancellationToken);
-    }
-
-    public static FragmentedMemoryReaderStream AsStream(this FragmentedMemory<byte> fragmentedMemory) => new(fragmentedMemory);
+    /// <summary>
+    /// Creates a <see cref="Stream"/> from the underlying <see cref="FragmentedMemory{byte}"/>.
+    /// </summary>
+    /// <param name="fragmentedMemory">The <see cref="FragmentedMemory{byte}"/> to create a <see cref="Stream"/> from.</param>
+    /// <returns>The underlying <see cref="FragmentedMemory{byte}"/> as a <see cref="Stream"/>.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)] // Prefer redundant code in memory rather than emitting a call.
+    public static Stream AsStream(this FragmentedMemory<byte> fragmentedMemory) => new FragmentedMemoryReaderStream(fragmentedMemory);
 }
