@@ -3,6 +3,9 @@ using System.Runtime.CompilerServices;
 
 namespace Ofella.Utilities.Memory.Defragmentation;
 
+/// <summary>
+/// Provides methods for simple defragmentation of memory without having to create a <see cref="FragmentedMemory{T}"/>.
+/// </summary>
 public static class FragmentedMemory
 {
     #region Defragmentation of Memory<T>[]
